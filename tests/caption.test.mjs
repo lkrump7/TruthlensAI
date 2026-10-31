@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { MetaClient } from '../lib/meta.mjs';
-import { captionImage, MAX_IMAGE_BYTES, mimeForImageFile } from '../lib/caption.mjs';
+import { captionImage, BlankCaptionError, MAX_IMAGE_BYTES, mimeForImageFile } from '../lib/caption.mjs';
 import { CAPTION_SYSTEM, CAPTION_INSTRUCTION } from '../lib/prompts.mjs';
 
 const ENV = { META_MODEL_API_URL: 'https://api.meta.ai/v1/chat/completions', META_MODEL_API_KEY: 'k' };
@@ -55,6 +55,13 @@ test('captionImage rejects empty, oversize, unsupported, and blank results befor
   await assert.rejects(() => captionImage(Buffer.alloc(MAX_IMAGE_BYTES + 1), { mime: 'image/png', visionImpl: noFetch }), /too large/i);
   await assert.rejects(() => captionImage(Buffer.from('x'), { mime: 'image/tiff', visionImpl: noFetch }), /unsupported/i);
   await assert.rejects(() => captionImage(Buffer.from('x'), { mime: 'image/png', visionImpl: async () => '   ' }), /no caption/i);
+});
+
+test('captionImage throws BlankCaptionError for a blank caption', async () => {
+  await assert.rejects(
+    () => captionImage(Buffer.from('x'), { mime: 'image/png', visionImpl: async () => '   ' }),
+    (e) => e instanceof BlankCaptionError && /no caption/i.test(e.message),
+  );
 });
 
 test('mimeForImageFile maps extensions and rejects others', () => {

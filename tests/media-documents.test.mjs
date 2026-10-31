@@ -52,6 +52,48 @@ test('image route refuses a missing file, a wrong type, and unconfigured Meta', 
   assert.match((await res.json()).error, /Muse Spark|Meta/i);
 });
 
+async function withVisionFetch(fetchImpl, fn) {
+  const savedFetch = globalThis.fetch;
+  const saved = { u: process.env.META_MODEL_API_URL, k: process.env.META_MODEL_API_KEY };
+  process.env.META_MODEL_API_URL = 'https://example.invalid/chat';
+  process.env.META_MODEL_API_KEY = 'k';
+  globalThis.fetch = fetchImpl;
+  try { return await fn(); } finally {
+    globalThis.fetch = savedFetch;
+    if (saved.u === undefined) delete process.env.META_MODEL_API_URL; else process.env.META_MODEL_API_URL = saved.u;
+    if (saved.k === undefined) delete process.env.META_MODEL_API_KEY; else process.env.META_MODEL_API_KEY = saved.k;
+  }
+}
+
+const blankVisionFetch = async () => ({ ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '   ' } }] }) });
+
+test('image route returns 422 when the vision model returns a blank caption', async () => {
+  const res = await withVisionFetch(blankVisionFetch, () => imagePost(uploadReq('http://t/api/documents/image', 'sign.png', Buffer.from([137, 80, 78, 71]), 'image/png')));
+  assert.equal(res.status, 422);
+});
+
+test('image route returns 400 for an SVG upload before any model call', async () => {
+  let calls = 0;
+  const countingBlankFetch = async (...args) => { calls++; return blankVisionFetch(...args); };
+  const svgByType = await withVisionFetch(countingBlankFetch, () => imagePost(uploadReq('http://t/api/documents/image', 'icon.svg', Buffer.from('<svg/>'), 'image/svg+xml')));
+  assert.equal(svgByType.status, 400);
+  assert.equal(calls, 0);
+  const svgByExtension = await withVisionFetch(countingBlankFetch, () => imagePost(uploadReq('http://t/api/documents/image', 'icon.svg', Buffer.from('<svg/>'), 'image/png')));
+  assert.equal(svgByExtension.status, 400);
+  assert.equal(calls, 0);
+});
+
+test('image route lets the extension win over file.type', async () => {
+  const res = await withVisionFetch(blankVisionFetch, () => imagePost(uploadReq('http://t/api/documents/image', 'sign.png', Buffer.from([137, 80, 78, 71]), 'image/svg+xml')));
+  assert.equal(res.status, 422);
+});
+
+test('image route returns 502 when the vision model throws', async () => {
+  const throwingFetch = async () => { throw new Error('vision exploded'); };
+  const res = await withVisionFetch(throwingFetch, () => imagePost(uploadReq('http://t/api/documents/image', 'sign.png', Buffer.from([137, 80, 78, 71]), 'image/png')));
+  assert.equal(res.status, 502);
+});
+
 test('video route refuses a missing file, a wrong type, and unconfigured Meta', async () => {
   assert.equal((await videoPost(new Request('http://t/api/documents/video', { method: 'POST' }))).status, 400);
   assert.equal((await videoPost(uploadReq('http://t/api/documents/video', 'sign.png', Buffer.from('hello')))).status, 400);

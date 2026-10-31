@@ -149,7 +149,7 @@ The route status codes are the contract here. Callers act on them.
 
 | ID | Severity | Status | Finding |
 |---|---|---|---|
-| TL-009 | medium | planned | Blank image caption returns 502 and the 422 branch is dead |
+| TL-009 | medium | closed | Blank image caption returns 502 and the 422 branch is dead |
 | TL-010 | medium | planned | Video document omits `durationSec` and hides ffmpeg failure |
 
 TL-009. Blank image caption returns the wrong status.
@@ -333,3 +333,7 @@ TL-007. `applyVerdict` still loses concurrent writes. Closed in
 TL-008. Duplicate claim text breaks the 20-claim auto-verify cap.
 Closed in `fix: cap auto-verification by claim identity (TL-008)`.
 Pinned by `tests/reader.test.mjs`.
+
+TL-009. Blank image caption returns the wrong status.
+Closed in `fix: image caption status codes (TL-009)`.
+Pinned by `tests/caption.test.mjs` and `tests/media-documents.test.mjs`.
