@@ -172,6 +172,25 @@ test('decisive verdict with two independent domains stands, and newer contradict
   assert.equal(r.supporting[0].date, '2004-01-01');
 });
 
+test('researchClaim fetches sources with bounded concurrency', async () => {
+  const sources = Array.from({ length: 6 }, (_, i) => ({ title: `S${i}`, url: `https://s${i}.example/page` }));
+  const search = async () => ({ queries: ['q'], citations: [], sources });
+  let active = 0, peak = 0;
+  const fetchText = async () => { active++; peak = Math.max(peak, active); await new Promise((r) => setTimeout(r, 10)); active--; return '<body><p>Brain scans show activity throughout the brain every day, contradicting the ten percent myth about brains.</p></body>'; };
+  const r = await researchClaim('Humans only use 10% of their brains.', { search, fetchText, cache: false });
+  assert.ok(peak <= 4, `peak ${peak}`);
+  assert.ok(peak > 1, `peak ${peak}`);
+  assert.ok(r.evidence.length >= 1);
+});
+
+test('one dead source does not lose evidence from the rest of the fan-out', async () => {
+  const search = async () => parseSearchResponse(SAMPLE);
+  const fetchText = async (url) => { if (url.includes('a.example')) throw new Error('fetch 404'); return '<body><p>Brain scans show activity throughout the brain every day, contradicting the ten percent myth about brains.</p></body>'; };
+  const r = await researchClaim('Humans only use 10% of their brains.', { search, fetchText, cache: false });
+  assert.ok(r.evidence.length >= 1);
+  assert.ok(r.failures.some((f) => /a\.example/.test(f.url)));
+});
+
 test('researchClaim caches repeat searches for the same claim', async () => {
   let calls = 0;
   const search = async () => { calls++; return parseSearchResponse(SAMPLE); };
@@ -233,6 +252,21 @@ test('self-correction: a material challenge revises the verdict and records both
   assert.match(r.challenge.falsifier, /dormant region/);
 });
 
+test('a material challenge revision is credited to Muse Wonder, who made it', async () => {
+  const search = async () => parseSearchResponse(SAMPLE);
+  const fetchText = async (url) => url.includes('b.example')
+    ? '<body><p>Neuroscience mapping of brains shows activity across the whole brain daily; the ten percent myth about brains fails.</p></body>'
+    : '<body><p>Brain scans show activity throughout the brain every day, contradicting the ten percent myth about brains.</p></body>';
+  const judge = async ({ evidence, challenge }) => challenge
+    ? { verdict: 'Partially supported', citedIds: evidence.map((e) => e.id), stances: Object.fromEntries(evidence.map((e) => [e.id, 'contradicts'])), explanation: 'Revised.' }
+    : { verdict: 'Supported', citedIds: evidence.map((e) => e.id), stances: Object.fromEntries(evidence.map((e) => [e.id, 'supports'])), explanation: 'First pass.' };
+  const challenge = async () => ({ material: true, falsifier: 'x', alternative: 'y', unresolved: 'z' });
+  const r = await verifyResearchedClaim('Humans only use 10% of their brains.', { search, fetchText, judge, challenge, cache: false });
+  assert.equal(r.preChallengeVerdict, 'Supported');
+  assert.equal(r.verdict, 'Partially supported');
+  assert.equal(r.judgedBy, 'Muse Wonder');
+});
+
 test('self-correction revisions pass through the same gates (single-domain revision is downgraded)', async () => {
   const search = async () => parseSearchResponse(SAMPLE);
   const fetchText = async (url) => url.includes('b.example')
@@ -281,6 +315,25 @@ test('shared-pool evidence irrelevant to the actual claim is filtered before jud
   const r = await verifyResearchedClaim('The price of wheat rose sharply in global commodity markets last quarter.', { search, fetchText, judge, cacheKey: 'shared-pool-probe-2' });
   assert.equal(r.verdict, 'Unverifiable');
   assert.ok(!judgedClaims.some((c) => /wheat/i.test(c)));
+});
+
+test('compound sub-claims run two at a time and keep their order', async () => {
+  const search = async () => parseSearchResponse(SAMPLE);
+  const fetchText = async (url) => url.includes('b.example')
+    ? '<body><p>Researcher Y invented the treatment, and the treatment reduced mortality by 40 percent across the trial cohort studied.</p></body>'
+    : '<body><p>The treatment reduced mortality by 40 percent in the trial, and Researcher Y invented the treatment described in the study report.</p></body>';
+  let active = 0, peak = 0;
+  const judge = async ({ claim, evidence }) => {
+    active++; peak = Math.max(peak, active);
+    await new Promise((r) => setTimeout(r, 20));
+    active--;
+    return /invented/.test(claim)
+      ? { verdict: 'Contradicted', citedIds: evidence.map((e) => e.id), stances: Object.fromEntries(evidence.map((e) => [e.id, 'contradicts'])), explanation: 'No.' }
+      : { verdict: 'Supported', citedIds: evidence.map((e) => e.id), stances: Object.fromEntries(evidence.map((e) => [e.id, 'supports'])), explanation: 'Yes.' };
+  };
+  const r = await verifyResearchedClaim('The treatment reduced mortality by 40 percent and was invented by Researcher Y.', { search, fetchText, judge, cache: false });
+  assert.equal(peak, 2);
+  assert.deepEqual(r.subclaims.map((s) => s.verdict), ['Supported', 'Contradicted']);
 });
 
 test('compound claims roll up verdicts from their atomic claims', async () => {

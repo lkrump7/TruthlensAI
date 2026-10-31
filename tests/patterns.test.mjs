@@ -23,6 +23,13 @@ test('topicKeyFor lives in claims and builds a stable topic key', () => {
   assert.ok(!a.includes('increases'));
 });
 
+test('topicKeyFor separates claims that differ only in a number', () => {
+  const a = topicKeyFor('The vaccine reduced hospitalisations by 80 percent among elderly residents');
+  const b = topicKeyFor('The vaccine reduced hospitalisations by 20 percent among elderly residents');
+  assert.notEqual(a, b);
+  assert.equal(topicKeyFor('Deaths fell by eighty percent in the trial'), topicKeyFor('Deaths fell by 80 percent in the trial'));
+});
+
 test('LocalRankBackend ranks the closest vector first', async () => {
   const backend = new LocalRankBackend();
   await backend.reset([{ id: 'far', vector: [0, 1] }, { id: 'near', vector: [1, 0] }]);

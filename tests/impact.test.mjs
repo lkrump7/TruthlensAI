@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildReport } from '../lib/report.mjs';
 import { buildContradictionMap } from '../lib/contradictions.mjs';
-import { createDocument, recheckDocument } from '../lib/store.mjs';
+import { createDocument, recheckDocument, whenAutoVerificationDone } from '../lib/store.mjs';
 
 test('report puts high-impact disputed claims first and never emits a truth score', () => {
   const claims = [
@@ -34,6 +34,7 @@ test('contradiction map links opposing claims from different books by topic', ()
 
 test('recheck appends a verdict history without losing the original assessment', async () => {
   const doc = await createDocument({ title: 'Recheck probe', owner: 'impact', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
+  await whenAutoVerificationDone(doc.id);
   const before = doc.claims[0];
   assert.equal(before.history.length, 1);
   assert.equal(before.history[0].verdict, before.verdict);

@@ -17,7 +17,7 @@ const { POST: authPost, GET: authGet } = await import('../app/api/auth/route.js'
 const { GET: contradictionsGet } = await import('../app/api/contradictions/route.js');
 const { POST: pdfPost } = await import('../app/api/documents/pdf/route.js');
 const recheckRoute = await import('../app/api/documents/[id]/recheck/route.js');
-const { createDocument, getDocument, listDocuments, recheckDocument } = await import('../lib/documents.mjs');
+const { createDocument, getDocument, listDocuments, recheckDocument, whenAutoVerificationDone } = await import('../lib/documents.mjs');
 const { metaSearch } = await import('../lib/search.mjs');
 
 const jsonReq = (url, body, headers = {}) => new Request(url, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
@@ -120,6 +120,7 @@ test('sad: auth route rejects unknown actions, weak passwords and duplicates; lo
 test('sad+happy: recheck route 404s unknown documents and rechecks known ones', async () => {
   assert.equal((await recheckRoute.POST(new Request('http://t/x', { method: 'POST' }), { params: { id: 'doc-999999' } })).status, 404);
   const doc = await createDocument({ title: 'Recheck Route', owner: 'demo', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
+  await whenAutoVerificationDone(doc.id);
   const res = await recheckRoute.POST(new Request('http://t/x', { method: 'POST' }), { params: { id: doc.id } });
   assert.equal(res.status, 200);
   const { document } = await res.json();
@@ -253,8 +254,10 @@ test('integration: live-configured document creation records live-failed claims 
   globalThis.fetch = async () => { throw new TypeError('fetch failed'); };
   try {
     const doc = await createDocument({ title: 'Live Fail', owner: 'demo', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
-    assert.ok(doc.claims.length >= 1);
-    assert.ok(doc.claims.every((c) => c.mode === 'live-failed' && c.verdict === 'Unverifiable'));
+    await whenAutoVerificationDone(doc.id);
+    const settled = await getDocument(doc.id);
+    assert.ok(settled.claims.length >= 1);
+    assert.ok(settled.claims.every((c) => c.mode === 'live-failed' && c.verdict === 'Unverifiable'));
   } finally {
     globalThis.fetch = savedFetch;
     delete process.env.META_MODEL_API_URL;

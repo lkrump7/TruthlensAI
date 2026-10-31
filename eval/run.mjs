@@ -10,6 +10,8 @@ try {
 
 if (process.argv.includes('--no-challenge')) process.env.TRUTHLENS_NO_CHALLENGE = '1';
 const { verifyResearchedClaim } = await import('../lib/pipeline.mjs');
+const { pingForMiss } = await import('../lib/failures.mjs');
+const { fitConformalThreshold, shouldAbstain, calibrationScore } = await import('../lib/calibration.mjs');
 const { liveStatus } = await import('../lib/meta.mjs');
 const claims = JSON.parse(readFileSync('eval/claims.json', 'utf8'));
 
@@ -29,12 +31,24 @@ for (const c of claims) {
     if (r.verdict === 'Unverifiable') abstained++;
     if (r.judges && !r.judges.agreed) disagreements++;
     const cited = [...(r.supporting || []), ...(r.contradicting || [])];
-    rows.push({ label: c.label, verdict: r.verdict, ok, ms: Date.now() - t0, sources: r.research?.sourcesFound ?? 0, fetched: r.research?.fetched ?? 0, citedDomains: new Set(cited.map((e) => e.source)).size });
-    console.log(`${ok ? 'PASS' : 'MISS'} [${c.label}] -> ${r.verdict} (${((Date.now() - t0) / 1000).toFixed(0)}s, ${r.research?.fetched ?? 0} fetched)`);
+    rows.push({ label: c.label, verdict: r.verdict, ok, calibrationScore: r.uncertainty ? calibrationScore(r.uncertainty) : null, ping: ok ? null : pingForMiss(r), ms: Date.now() - t0, sources: r.research?.sourcesFound ?? 0, fetched: r.research?.fetched ?? 0, citedDomains: new Set(cited.map((e) => e.source)).size });
+    console.log(`${ok ? 'PASS' : 'MISS'} [${c.label}] -> ${r.verdict} (${((Date.now() - t0) / 1000).toFixed(0)}s, ${r.research?.fetched ?? 0} fetched)${ok ? '' : ' PING: ' + pingForMiss(r)}`);
   } catch (e) {
-    rows.push({ label: c.label, verdict: 'ERROR', ok: false, error: e.message });
-    console.log(`ERROR [${c.label}] ${e.message}`);
+    rows.push({ label: c.label, verdict: 'ERROR', ok: false, ping: pingForMiss(null), error: e.message });
+    console.log(`ERROR [${c.label}] ${e.message} PING: Grounding`);
   }
 }
+const pingCounts = {};
+for (const r of rows) if (r.ping) pingCounts[r.ping] = (pingCounts[r.ping] || 0) + 1;
 console.log(`\nAgreement: ${agreed}/${claims.length}  Abstentions: ${abstained}  Judge disagreements: ${disagreements}`);
+console.log(`Failure taxonomy (PING): ${JSON.stringify(pingCounts)}`);
+const labelled = rows.filter((r) => r.calibrationScore !== null && r.calibrationScore !== undefined);
+const q = fitConformalThreshold(labelled.map((r) => ({ confidence: r.calibrationScore, correct: r.ok })), 0.1);
+if (q !== null) {
+  const missesCaught = labelled.filter((r) => !r.ok && shouldAbstain(r.calibrationScore, q)).length;
+  const misses = labelled.filter((r) => !r.ok).length;
+  const correctKept = labelled.filter((r) => r.ok && !shouldAbstain(r.calibrationScore, q)).length;
+  const correct = labelled.filter((r) => r.ok).length;
+  console.log(`Conformal (alpha=0.1, IN-SAMPLE fit on n=${labelled.length}, not a held-out guarantee): q=${q.toFixed(3)} — would abstain on ${missesCaught}/${misses} misses, keep ${correctKept}/${correct} correct. Do not enable TRUTHLENS_CONFORMAL_Q from this fit; refit on a held-out labelled set first.`);
+}
 console.log(JSON.stringify(rows, null, 1));

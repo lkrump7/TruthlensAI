@@ -19,6 +19,16 @@ test('flags commentary presented as a primary study', () => {
   assert.ok(r.discrepancies.some((d) => d.type === 'secondary-as-primary'));
 });
 
+test('flags negation inside cited evidence and reports hedging, as annotations only', () => {
+  const r = investigateEvidenceChain('Exercise improves memory in older adults.', ev({ passage: 'The trial found no significant improvement in memory; exercise did not improve recall in this cohort of 80 adults.' }));
+  assert.ok(r.discrepancies.some((d) => d.type === 'negated-evidence'));
+  const hedged = investigateEvidenceChain('Exercise improves memory in older adults.', ev({ passage: 'The results suggest exercise may improve memory in some older adults, though effects were modest.' }));
+  assert.equal(hedged.checks.find((c) => c.name === 'hedging').status, 'present');
+  const clean = investigateEvidenceChain('Exercise improves memory in older adults.', ev({ passage: 'Exercise improved memory in older adults in the trial.' }));
+  assert.equal(clean.checks.find((c) => c.name === 'hedging').status, 'absent');
+  assert.ok(!clean.discrepancies.some((d) => d.type === 'negated-evidence'));
+});
+
 test('a clean claim with matching evidence yields no discrepancies', () => {
   const r = investigateEvidenceChain('Water boils at 100 degrees Celsius at sea level.', ev({ passage: 'At sea level, water boils at 100 degrees Celsius at standard pressure.' }));
   assert.deepEqual(r.discrepancies, []);

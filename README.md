@@ -2,7 +2,7 @@
 
 Don't just read information. Investigate it, challenge it, and discover the evidence behind it.
 
-An evidence-verification app for the Meta Global AI Developer Hackathon 2026. Paste a claim, or paste document text, and TruthLens extracts claims, screens untrusted text, researches the live web through Meta search grounding, fetches every source itself, and returns a verdict citing only fetched passages — or an honest `Unverifiable`.
+An evidence-verification app for the Meta Global AI Developer Hackathon 2026. Paste a claim, or upload a book, and TruthLens extracts and preserves every claim, automatically verifies the 20 most significant in the background, and lets you investigate the rest yourself: verify any claim on demand, submit your own claims and theories in your own words (checked against the book's passages and against independent evidence), and challenge any verdict with a recorded follow-up investigation. Every verdict cites only fetched passages — or is an honest `Unverifiable`.
 
 ## Run it
 
@@ -13,7 +13,7 @@ npm run dev
 
 Open http://localhost:3000 in your browser.
 
-Production: `npm run build && npm start`. Tests: `npm test` (147 tests, `node --test`), `npm run typecheck`, `npm run lint`, `npm run coverage`, `npm run eval` (live evaluation, needs the Meta key).
+Production: `npm run build && npm start`. Tests: `npm test` (234 tests, `node --test`), `npm run typecheck`, `npm run lint`, `npm run coverage`, `npm run eval` (live evaluation, needs the Meta key).
 
 Full stack with Postgres + FAISS + OCR sidecar: `docker compose up --build`, then open http://localhost:3000.
 Local sidecar without Docker: `.venv/bin/python services/sidecar.py 8100` and set `FAISS_SERVICE_URL=http://127.0.0.1:8100`.
@@ -39,9 +39,14 @@ Meta models do the judging in this app, not just the coding. Every Meta touchpoi
 | Meta search grounding | [lib/search.mjs](lib/search.mjs) | Finds supporting, contradicting, and primary sources per claim. Results are leads only — TruthLens fetches every page itself and cites only fetched passages |
 | FAISS (Meta AI) | [services/sidecar.py](services/sidecar.py), [lib/rank.mjs](lib/rank.mjs) | Python `faiss.IndexFlatIP` sidecar ranks evidence semantically; in-process exact-cosine backend behind the same contract when no sidecar runs |
 | Prompt Guard-style screening | [lib/screen.mjs](lib/screen.mjs) | Local injection screening quarantines prompt-injection text in books and fetched pages before it reaches a model. Honest note: this is a local Meta-pattern implementation, not hosted Prompt Guard 2 |
+| Prompt design | [lib/prompts.mjs](lib/prompts.mjs) | Every model prompt in one place: judge, challenger, author-stance, and OCR. Plain English, silent step-by-step working, verdict definitions, a passage-injection guard, and one worked example per prompt. Output stays structured JSON, never free-form reasoning text |
 | Muse Code (`muse-wonder-1.0`) | Development | This codebase was built, tested, reviewed, and bug-hunted with Muse Code. See [docs/PROVENANCE.md](docs/PROVENANCE.md) |
 
 Model names are configurable: `META_SPARK_MODEL`, `META_WONDER_MODEL`. Without a Meta key the app runs a clearly labelled demo engine — it never presents demo verdicts as live.
+
+## Agentic workflow (LangGraph)
+
+Investigations run as a LangGraph JS workflow in [graph.mjs](lib/graph.mjs): `triage → research → judge → gates → challenge → assemble`, orchestrating the stage functions in [stages.mjs](lib/stages.mjs). The graph adds in-process checkpointed state (per-thread, via LangGraph's `MemorySaver` — checkpoints do not survive a server restart and no resume endpoint is exposed yet), conditional short-circuits (opinions stop at triage, empty research abstains), and a recorded `trajectory` on every verdict showing which nodes ran. Decomposition, compound roll-up, and all verdict logic are unchanged — LangGraph manages the workflow; Meta models do the research and judging. No Python rewrite, no Jev, no additional providers.
 
 ## Proof of work
 

@@ -36,6 +36,26 @@ verdicts a user can defend.
    revisions pass through every gate again, and both verdicts stay visible.
 10. **No single truth score.** Significance-weighted reporting shows
     consequential disputes first; an average must never hide them.
+11. **The author's stance is not evidence.** Book passages show what the
+    author says about a reader's theory; only independently fetched
+    external evidence can move a verdict.
+12. **Not yet verified is a visible state.** Every extracted claim is
+    preserved and labelled until someone — the automatic pass or the
+    reader — actually investigates it. Coverage counts only investigated
+    claims.
+13. **Challenges add, never overwrite.** A reader challenge is a new
+    recorded investigation appended to a claim; the original verdict
+    stays on record beside it.
+14. **Faithfulness is not factuality.** Every verdict reports faithfulness
+    to its cited passages and the strength of that evidence base as two
+    separate signals; neither is collapsed into a confidence score.
+15. **Abstention thresholds are calibrated, not felt.** Conformal advice
+    appears only when a threshold was fitted on labelled verdicts
+    (`TRUTHLENS_CONFORMAL_Q` from `npm run eval`); otherwise no advice is
+    shown. Every budgeted source is fetched: marginal-gain early stopping
+    was measured, found to risk late novel evidence, and removed —
+    verdict quality outranks fetch savings. The same rule governs the
+    judge's context: utility ranks budgeted evidence, it never cuts it.
 
 ## Accepted trade-offs
 

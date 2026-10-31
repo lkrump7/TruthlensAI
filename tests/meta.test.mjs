@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { liveStatus, parseLiveVerdict, MetaClient, getModels, metaMode, callLiveJudge } from '../lib/meta.mjs';
 import { MetaApiError, JudgeError } from '../lib/errors.mjs';
 import { metaSearch } from '../lib/search.mjs';
+import { createBreaker } from '../lib/breaker.mjs';
 
 test('liveStatus reports missing config by name, never a bare live flag', () => {
   const s = liveStatus({});
@@ -44,6 +45,54 @@ test('sad: MetaClient surfaces HTTP failures as retryable MetaApiError only for 
   const mk = (status) => new MetaClient({ apiUrl: 'https://x/chat', apiKey: 'k', fetchImpl: async () => ({ ok: false, status, json: async () => ({}) }) });
   await assert.rejects(() => mk(503).judge({ claim: 'c', evidence: [] }), (e) => e instanceof MetaApiError && e.retryable === true);
   await assert.rejects(() => mk(400).judge({ claim: 'c', evidence: [] }), (e) => e instanceof MetaApiError && e.retryable === false);
+});
+
+test('MetaClient retries a retryable HTTP failure once and then succeeds', async () => {
+  let calls = 0;
+  const fetchImpl = async () => { calls++; return calls === 1 ? { ok: false, status: 503, json: async () => ({}) } : { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: JSON.stringify({ verdict: 'Supported', citedIds: ['ev1'], stances: { ev1: 'supports' }, explanation: 'fine' }) } }] }) }; };
+  const client = new MetaClient({ apiUrl: 'https://example.invalid/chat', apiKey: 'k', spark: 's1', wonder: 'w1', fetchImpl });
+  const out = await client.judge({ claim: 'c', evidence: [{ id: 'ev1', stance: 'unknown', passage: 'p' }], model: 's1' });
+  assert.equal(out.verdict, 'Supported');
+  assert.equal(calls, 2);
+});
+
+test('circuit breaker opens after repeated retryable failures, fails fast, then probes', async () => {
+  let calls = 0;
+  const fetchImpl = async () => { calls++; return { ok: false, status: 503, json: async () => ({}) }; };
+  const client = new MetaClient({ apiUrl: 'https://x/chat', apiKey: 'k', fetchImpl, breaker: createBreaker({ threshold: 3, cooldownMs: 40 }) });
+  for (let i = 0; i < 3; i++) await assert.rejects(() => client.judge({ claim: 'c', evidence: [] }), MetaApiError);
+  const before = calls;
+  await assert.rejects(() => client.judge({ claim: 'c', evidence: [] }), /circuit/i);
+  assert.equal(calls, before, 'open circuit must not call the provider');
+  await new Promise((r) => setTimeout(r, 60));
+  await assert.rejects(() => client.judge({ claim: 'c', evidence: [] }), MetaApiError);
+  assert.ok(calls > before, 'half-open probe must call the provider once more');
+});
+
+test('circuit breaker counts network failures and allows only one half-open probe', async () => {
+  let calls = 0;
+  const fetchImpl = async () => { calls++; throw new TypeError('fetch failed'); };
+  const client = new MetaClient({ apiUrl: 'https://x/chat', apiKey: 'k', fetchImpl, breaker: createBreaker({ threshold: 2, cooldownMs: 30 }) });
+  await assert.rejects(() => client.judge({ claim: 'c', evidence: [] }));
+  await assert.rejects(() => client.judge({ claim: 'c', evidence: [] }));
+  const before = calls;
+  await assert.rejects(() => client.judge({ claim: 'c', evidence: [] }), /circuit/i);
+  assert.equal(calls, before);
+  await new Promise((r) => setTimeout(r, 50));
+  const probes = await Promise.allSettled([client.judge({ claim: 'c', evidence: [] }), client.judge({ claim: 'c', evidence: [] }), client.judge({ claim: 'c', evidence: [] })]);
+  assert.ok(calls - before <= 2, `probe burst used ${calls - before} fetches`);
+  assert.ok(probes.filter((p) => p.status === 'rejected' && /circuit/i.test(p.reason.message)).length >= 2);
+});
+
+test('circuit breaker never counts non-retryable failures', async () => {
+  let calls = 0;
+  const fetchImpl = async () => { calls++; return { ok: false, status: 400, json: async () => ({}) }; };
+  const client = new MetaClient({ apiUrl: 'https://x/chat', apiKey: 'k', fetchImpl, breaker: createBreaker({ threshold: 2, cooldownMs: 1000 }) });
+  await assert.rejects(() => client.judge({ claim: 'c', evidence: [] }), MetaApiError);
+  await assert.rejects(() => client.judge({ claim: 'c', evidence: [] }), MetaApiError);
+  const before = calls;
+  await assert.rejects(() => client.judge({ claim: 'c', evidence: [] }), (e) => e instanceof MetaApiError && !/circuit/i.test(e.message));
+  assert.ok(calls > before);
 });
 
 test('sad: MetaClient rejects empty content and non-JSON completions', async () => {

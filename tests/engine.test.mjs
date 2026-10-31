@@ -93,6 +93,13 @@ test('chunk IDs are deterministic for the same input', () => {
   assert.deepEqual(chunkDocument(pages).map((c) => c.id), chunkDocument(pages).map((c) => c.id));
 });
 
+test('chunking keeps a page that ends mid-sentence instead of dropping all but the last word', () => {
+  const chunks = chunkDocument([{ page: 4, text: 'The committee concluded that the new reservoir, built over five years,' }]);
+  assert.equal(chunks.length, 1);
+  assert.match(chunks[0].text, /committee concluded that the new reservoir/);
+  assert.equal(chunks[0].page, 4);
+});
+
 test('chunking preserves page numbers', () => {
   const chunks = chunkDocument([
     { page: 1, text: 'Alpha claim one. '.repeat(40) },
@@ -105,6 +112,7 @@ test('chunking preserves page numbers', () => {
 
 test('cosine similarity is 1 for identical text vectors', () => {
   const idx = new VectorIndex();
+  idx.add('x', 'the brain myth study');
   const v = idx.embed('the brain myth study');
   assert.ok(Math.abs(cosine(v, v) - 1) < 1e-9);
 });

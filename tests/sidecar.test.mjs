@@ -32,6 +32,21 @@ test('sidecar rejects traversal namespaces with 400 JSON and writes nothing outs
   assert.ok(!readdirSync('data').some((f) => f.includes('escape-probe')));
 });
 
+test('sidecar /embed validates input and either embeds or honestly reports 503', async (t) => {
+  if (!available) return t.skip('sidecar venv unavailable');
+  const bad = await post('/embed', { texts: 'not-a-list' });
+  assert.equal(bad.status, 400);
+  const res = await post('/embed', { texts: ['Exercise improves memory.', 'Aerobic training enhanced recall.'] });
+  if (res.status === 503) {
+    assert.ok((await res.json()).error, 'unavailable embeddings must say why');
+    return;
+  }
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.vectors.length, 2);
+  assert.ok(body.dim > 0 && body.vectors.every((v) => v.length === body.dim));
+});
+
 test('sidecar returns 400 JSON on vector dimension mismatch, never a dropped connection', async (t) => {
   if (!available) return t.skip('sidecar venv unavailable');
   const ns = 'dims-probe-' + Date.now();
