@@ -219,7 +219,7 @@ No wrong answers here. These cost money or slow down the next change.
 | ID | Severity | Status | Finding |
 |---|---|---|---|
 | TL-015 | low | closed | `BUDGET.maxJudgeCalls` is dead config |
-| TL-016 | low | planned | Duplicated idempotency tail and duplicated stability loop |
+| TL-016 | low | closed | Duplicated idempotency tail and duplicated stability loop |
 | TL-017 | low | planned | Verdict strings are listed in four-plus places |
 | TL-018 | low | planned | Trajectory labels do not match graph node names |
 
@@ -370,3 +370,9 @@ TL-015. `BUDGET.maxJudgeCalls` is dead config.
 Closed in `chore: remove dead judge-call budget (TL-015)`.
 Pinned by `tests/utility.test.mjs`. Judge cost stays governed by
 `CONFIG.STABILITY_RUNS` and the stability gate.
+
+TL-016. Two code shapes are copied.
+Closed in `refactor: share idempotency write in documents (TL-016)`
+and `refactor: share stability repeat loop in stages (TL-016)`.
+No behaviour change: pinned by `tests/reader.test.mjs` and
+`tests/stability.test.mjs`, green before and after each extraction.
