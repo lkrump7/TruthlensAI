@@ -220,7 +220,7 @@ No wrong answers here. These cost money or slow down the next change.
 |---|---|---|---|
 | TL-015 | low | closed | `BUDGET.maxJudgeCalls` is dead config |
 | TL-016 | low | closed | Duplicated idempotency tail and duplicated stability loop |
-| TL-017 | low | planned | Verdict strings are listed in four-plus places |
+| TL-017 | low | closed | Verdict strings are listed in four-plus places |
 | TL-018 | low | planned | Trajectory labels do not match graph node names |
 
 TL-015. `BUDGET.maxJudgeCalls` is dead config.
@@ -376,3 +376,10 @@ Closed in `refactor: share idempotency write in documents (TL-016)`
 and `refactor: share stability repeat loop in stages (TL-016)`.
 No behaviour change: pinned by `tests/reader.test.mjs` and
 `tests/stability.test.mjs`, green before and after each extraction.
+
+TL-017. Verdict strings are listed again and again.
+Closed in `refactor: share verdict value lists (TL-017)`.
+Pinned by `tests/verdict.test.mjs`. No behaviour change:
+`DECISIVE_VERDICTS` in `lib/verdict.mjs` now holds the one
+decisive set, and `lib/report.mjs` reuses the existing
+`ESCALATION_VERDICTS` from `lib/config.mjs`.

@@ -1,6 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyCorroborationGate, applyOutdatedGate, applyStabilityGate } from '../lib/verdict.mjs';
+import { applyCorroborationGate, applyOutdatedGate, applyStabilityGate, DECISIVE_VERDICTS } from '../lib/verdict.mjs';
+
+test('DECISIVE_VERDICTS holds Supported and Contradicted (TL-017)', () => {
+  assert.deepEqual(DECISIVE_VERDICTS, ['Supported', 'Contradicted']);
+});
 
 test('corroboration gate downgrades a decisive verdict backed by one domain', () => {
   const ctx = { verdict: 'Contradicted', supporting: [], contradicting: [{ id: 'a', source: 'x.com' }], cited: [{ id: 'a', source: 'x.com' }], limitations: [] };
