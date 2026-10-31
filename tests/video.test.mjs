@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { planChunks, planFrameTimes, formatTimestamp, assembleVideoPages, videoToPages, MAX_VIDEO_SECONDS } from '../lib/video.mjs';
 
 test('planChunks splits a duration into 50 second windows', () => {
@@ -96,6 +99,33 @@ test('videoToPages surfaces an audio-chunk failure instead of treating it as sil
     }),
     /ffmpeg exploded/,
   );
+});
+
+test('videoToPages surfaces a real ffmpeg extraction failure when the probe shows an audio stream', async () => {
+  // No extractAudioChunk dep: videoToPages runs the real ffmpegAudioChunk,
+  // which probes with ffprobe and shells out to ffmpeg. Stub both binaries
+  // on PATH so the probe reports an audio stream and ffmpeg fails.
+  const bin = mkdtempSync(join(tmpdir(), 'tl-video-bin-'));
+  writeFileSync(join(bin, 'ffprobe'), '#!/bin/sh\nprintf \'%s\' \'{"streams":[{"codec_type":"video"},{"codec_type":"audio"}]}\'\n');
+  writeFileSync(join(bin, 'ffmpeg'), '#!/bin/sh\necho "invalid data while decoding stream" >&2\nexit 1\n');
+  chmodSync(join(bin, 'ffprobe'), 0o755);
+  chmodSync(join(bin, 'ffmpeg'), 0o755);
+  const savedPath = process.env.PATH;
+  process.env.PATH = `${bin}:${savedPath || ''}`;
+  try {
+    await assert.rejects(
+      () => videoToPages(Buffer.from('fake-video-with-audio'), {
+        probeDuration: async () => 25,
+        transcribeChunk: async () => { throw new Error('should not transcribe'); },
+        extractFrame: async () => Buffer.from('jpg').toString('base64'),
+        captionFrame: async () => 'a frame',
+      }),
+      /ffmpeg could not extract audio from that video:.*invalid data while decoding stream/,
+    );
+  } finally {
+    if (savedPath === undefined) delete process.env.PATH; else process.env.PATH = savedPath;
+    rmSync(bin, { recursive: true, force: true });
+  }
 });
 
 test('videoToPages rejects empty input and over-long videos before any transcription', async () => {
