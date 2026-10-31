@@ -53,7 +53,7 @@ will touch to say it. Fix them before any verdict work.
 | ID | Severity | Status | Finding |
 |---|---|---|---|
 | TL-001 | high | closed | Fetcher allows IPv4-mapped IPv6 private addresses |
-| TL-002 | high | planned | Export renders any record the client posts |
+| TL-002 | high | closed | Export renders any record the client posts |
 | TL-003 | medium | planned | Document event stream has no owner check |
 
 TL-001. Fetcher allows IPv4-mapped IPv6 private addresses.
@@ -304,3 +304,7 @@ touches it. `npm run eval` numbers settle the threshold half.
 TL-001. Fetcher allows IPv4-mapped IPv6 private addresses. Closed in
 `fix: block mapped IPv6 private hosts in fetcher (TL-001)`. Pinned by
 `tests/fetch.test.mjs`.
+
+TL-002. Export renders any record the client posts. Closed in
+`fix: export stored verdicts only (TL-002)`. Pinned by
+`tests/export.test.mjs`.

@@ -62,3 +62,59 @@ test('single-run stability never claims the runs disagreed', () => {
   assert.match(md, /No repeat run/);
   assert.ok(!/runs disagreed/.test(md), 'one run cannot disagree with itself');
 });
+
+// Route tests: export renders only a verdict already stored on a document.
+// Seeded through the document helpers, the same way reader.test.mjs does.
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+const dir = mkdtempSync(join(tmpdir(), 'tl-export-'));
+process.env.TRUTHLENS_STORE_FILE = join(dir, 'documents.json');
+delete process.env.META_MODEL_API_URL;
+delete process.env.META_MODEL_API_KEY;
+
+const { createDocument, getDocument, whenAutoVerificationDone } = await import('../lib/documents.mjs');
+const exportRoute = await import('../app/api/export/route.js');
+
+const postExport = (body) => exportRoute.POST(new Request('http://t/api/export', {
+  method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+}));
+
+async function seededDoc() {
+  const pages = [];
+  for (let p = 1; p <= 60; p++) pages.push({ page: p, text: `Chapter background on page ${p} explains general context and definitions for readers of this book at length today.` });
+  pages[58] = { page: 59, text: 'The vaccine reduced hospitalisations by 80 percent among elderly residents in the trial.' };
+  const doc = await createDocument({ title: 'Export Book', owner: 'reader', pages });
+  await whenAutoVerificationDone(doc.id);
+  return getDocument(doc.id);
+}
+
+test('export route renders the stored verdict for its doc and claim IDs', async () => {
+  const doc = await seededDoc();
+  const claim = doc.claims.find((c) => c.status === 'verified');
+  assert.ok(claim, 'seeded doc has a verified claim');
+  const res = await postExport({ docId: doc.id, claimId: claim.id });
+  assert.equal(res.status, 200);
+  assert.match(await res.text(), new RegExp(claim.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+});
+
+test('export route refuses a forged record posted with no IDs', async () => {
+  const res = await postExport({ record: { text: 'Forged claim that was never checked.', verdict: 'Supported', judgedBy: 'Nobody', explanation: 'Made up.', supporting: [], contradicting: [], limitations: [] } });
+  assert.equal(res.status, 400);
+  assert.ok(!(await res.text()).includes('Forged claim'));
+});
+
+test('export route 404s an unknown document and an unknown claim', async () => {
+  const doc = await seededDoc();
+  const claim = doc.claims.find((c) => c.status === 'verified');
+  assert.equal((await postExport({ docId: 'doc-999999', claimId: claim.id })).status, 404);
+  assert.equal((await postExport({ docId: doc.id, claimId: 'no-such-claim' })).status, 404);
+});
+
+test('export route 422s a claim with no verdict yet', async () => {
+  const doc = await seededDoc();
+  const claim = doc.claims.find((c) => c.status !== 'verified');
+  assert.ok(claim, 'seeded doc has a claim with no verdict');
+  assert.equal((await postExport({ docId: doc.id, claimId: claim.id })).status, 422);
+});

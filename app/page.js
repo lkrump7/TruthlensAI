@@ -110,8 +110,8 @@ function InvestigationSteps({ stages, r }) {
     </div>
   );
 }
-async function downloadReport(r) {
-  const res = await fetch('/api/export', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ record: r }) });
+async function downloadReport(docId, claimId) {
+  const res = await fetch('/api/export', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ docId, claimId }) });
   if (!res.ok) return;
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
@@ -119,7 +119,7 @@ async function downloadReport(r) {
   a.href = url; a.download = 'truthlens-investigation.md'; a.click();
   URL.revokeObjectURL(url);
 }
-function VerdictView({ r }) {
+function VerdictView({ r, docId }) {
   if (!r) return null;
   return (
     <section>
@@ -129,7 +129,7 @@ function VerdictView({ r }) {
       {r.stability && (r.stability.runs >= 2
         ? <p className="small">Judged {r.stability.runs} times on the same evidence. {r.stability.agreed ? 'Every run gave the same verdict.' : 'Runs disagreed, so the verdict above is the cautious one.'} The runs gave {r.stability.verdicts.join(', ')}.</p>
         : <p className="small">Judged once on the fetched evidence. No repeat run, so no agreement was measured.</p>)}
-      <p><button type="button" className="btn secondary" onClick={() => downloadReport(r)}>Download report</button></p>
+      {docId && r.id && <p><button type="button" className="btn secondary" onClick={() => downloadReport(docId, r.id)}>Download report</button></p>}
       <p className="small">Classified {r.type} · Judged by {r.judgedBy}{r.research ? ` · Research: ${r.research.sourcesFound} sources found, ${r.research.fetched} fetched & cited` : ''}</p>
       {r.research?.queries?.length > 0 && <p className="small">Search queries: {r.research.queries.join(' · ')}</p>}
       {r.judges && !r.judges.agreed && <div className="notice"><strong>Judges disagreed:</strong> Muse Spark said {r.judges.spark}; Muse Wonder said {r.judges.wonder}. Wonder’s verdict is shown.</div>}
@@ -401,7 +401,7 @@ export default function Home() {
                 {assessResult && (
                   <div data-assess-inline>
                     <div className="rule" />
-                    <VerdictView r={assessResult} />
+                    <VerdictView r={assessResult} docId={doc?.id} />
                     <div className="ev" data-debate>
                       <h3>Debate this verdict</h3>
                       <p className="small">Disagree, or want to dig deeper? Push back and the follow-up investigation is added to the record above. The original verdict stays.</p>
@@ -455,7 +455,7 @@ export default function Home() {
             ))}
           </section>
         )}
-        {shown && <section><div className="rule" /><button className="btn secondary" onClick={() => { setSelected(null); setResult(null); }}>← Back to claims</button><VerdictView r={shown} />{doc && shown.id && <div className="ev"><h3>Challenge this finding</h3><p className="small">The original verdict stays on record; the follow-up is added below it.</p><p><button className="btn secondary" onClick={() => challenge('stronger-contrary')} disabled={busy === 'challenge'}>Find stronger opposing evidence</button>{' '}<button className="btn secondary" onClick={() => challenge('prove-wrong')} disabled={busy === 'challenge'}>What would prove this wrong?</button>{' '}<button className="btn secondary" onClick={() => challenge('compare-author')} disabled={busy === 'challenge'}>Compare with the author</button></p><p><input type="text" placeholder="Or describe your own challenge…" value={challengeText} onChange={(e) => setChallengeText(e.target.value)} /> <button className="btn secondary" onClick={() => challenge('custom')} disabled={busy === 'challenge'}>Investigate</button>{busy === 'challenge' && <span className="small"> Investigating…</span>}</p></div>}</section>}
+        {shown && <section><div className="rule" /><button className="btn secondary" onClick={() => { setSelected(null); setResult(null); }}>← Back to claims</button><VerdictView r={shown} docId={doc?.id} />{doc && shown.id && <div className="ev"><h3>Challenge this finding</h3><p className="small">The original verdict stays on record; the follow-up is added below it.</p><p><button className="btn secondary" onClick={() => challenge('stronger-contrary')} disabled={busy === 'challenge'}>Find stronger opposing evidence</button>{' '}<button className="btn secondary" onClick={() => challenge('prove-wrong')} disabled={busy === 'challenge'}>What would prove this wrong?</button>{' '}<button className="btn secondary" onClick={() => challenge('compare-author')} disabled={busy === 'challenge'}>Compare with the author</button></p><p><input type="text" placeholder="Or describe your own challenge…" value={challengeText} onChange={(e) => setChallengeText(e.target.value)} /> <button className="btn secondary" onClick={() => challenge('custom')} disabled={busy === 'challenge'}>Investigate</button>{busy === 'challenge' && <span className="small"> Investigating…</span>}</p></div>}</section>}
           </div>
         )}
       </div>
