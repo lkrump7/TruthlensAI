@@ -150,7 +150,7 @@ The route status codes are the contract here. Callers act on them.
 | ID | Severity | Status | Finding |
 |---|---|---|---|
 | TL-009 | medium | closed | Blank image caption returns 502 and the 422 branch is dead |
-| TL-010 | medium | planned | Video document omits `durationSec` and hides ffmpeg failure |
+| TL-010 | medium | closed | Video document omits `durationSec` and hides ffmpeg failure |
 
 TL-009. Blank image caption returns the wrong status.
 `captionImage` in `lib/caption.mjs:42` throws on a blank caption.
@@ -337,3 +337,10 @@ Pinned by `tests/reader.test.mjs`.
 TL-009. Blank image caption returns the wrong status.
 Closed in `fix: image caption status codes (TL-009)`.
 Pinned by `tests/caption.test.mjs` and `tests/media-documents.test.mjs`.
+
+TL-010. Video document omits `durationSec` and hides ffmpeg failure.
+Closed in `fix: store video duration and surface ffmpeg failures (TL-010)`.
+Pinned by `tests/video.test.mjs` and `tests/media-documents.test.mjs`.
+Hand-check with ffmpeg 8.0.1: a 3s silent `testsrc` video returned
+frame pages with `durationSec: 3`; a garbage file failed at the
+ffprobe duration step instead of becoming a frames-only document.

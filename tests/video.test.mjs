@@ -56,13 +56,14 @@ test('assembleVideoPages keeps frames when there is no speech at all', () => {
 test('videoToPages transcribes each audio chunk in order and captions each sampled frame', async () => {
   const spoken = [];
   const captioned = [];
-  const pages = await videoToPages(Buffer.from('fake-video'), {
+  const { pages, durationSec } = await videoToPages(Buffer.from('fake-video'), {
     probeDuration: async () => 75,
     extractAudioChunk: async (startSec, endSec) => Buffer.from(`wav-${startSec}-${endSec}`),
     transcribeChunk: async (wav) => { spoken.push(wav.toString()); return { transcript: `speech for ${wav.toString()}` }; },
     extractFrame: async (atSec) => Buffer.from(`jpg-${atSec}`).toString('base64'),
     captionFrame: async (b64, atSec) => { captioned.push(atSec); return `frame at ${atSec}`; },
   });
+  assert.equal(durationSec, 75);
   assert.deepEqual(spoken, ['wav-0-50', 'wav-50-75']);
   assert.equal(captioned[0], 0);
   assert.equal(pages.length, 2);
@@ -72,15 +73,29 @@ test('videoToPages transcribes each audio chunk in order and captions each sampl
 });
 
 test('videoToPages still returns frame pages when the video has no audio track', async () => {
-  const pages = await videoToPages(Buffer.from('fake-video'), {
+  const { pages, durationSec } = await videoToPages(Buffer.from('fake-video'), {
     probeDuration: async () => 25,
     extractAudioChunk: async () => null,
     transcribeChunk: async () => { throw new Error('should not transcribe'); },
     extractFrame: async () => Buffer.from('jpg').toString('base64'),
     captionFrame: async (b64, atSec) => `silent frame ${atSec}`,
   });
+  assert.equal(durationSec, 25);
   assert.equal(pages.length, 3);
   assert.match(pages[0].text, /silent frame 0/);
+});
+
+test('videoToPages surfaces an audio-chunk failure instead of treating it as silence', async () => {
+  await assert.rejects(
+    () => videoToPages(Buffer.from('fake-video'), {
+      probeDuration: async () => 25,
+      extractAudioChunk: async () => { throw new Error('ffmpeg exploded: invalid data while decoding'); },
+      transcribeChunk: async () => ({ transcript: 'unused' }),
+      extractFrame: async () => Buffer.from('jpg').toString('base64'),
+      captionFrame: async () => 'a frame',
+    }),
+    /ffmpeg exploded/,
+  );
 });
 
 test('videoToPages rejects empty input and over-long videos before any transcription', async () => {

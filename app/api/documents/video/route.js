@@ -16,8 +16,9 @@ export async function POST(req) {
     return Response.json({ error: 'Video transcription is unavailable here. It needs Muse Voice Transcribe and Muse Spark vision on Meta Model API, and no Meta key is set on this deployment.' }, { status: 503 });
   }
   let pages;
+  let durationSec;
   try {
-    pages = await videoToPages(Buffer.from(await file.arrayBuffer()));
+    ({ pages, durationSec } = await videoToPages(Buffer.from(await file.arrayBuffer())));
   } catch (e) {
     return Response.json({ error: `Transcription failed. ${e.message}` }, { status: 502 });
   }
@@ -28,7 +29,7 @@ export async function POST(req) {
     title: String(form.get('title') || file.name || 'Uploaded video'),
     pages,
     kind: 'video',
-    media: { transcript, model: models.spark, voiceModel: voiceModel() },
+    media: { durationSec, transcript, model: models.spark, voiceModel: voiceModel() },
     owner: requestUser(req)?.username || 'demo',
   });
   const { chunks, ...pub } = doc;
