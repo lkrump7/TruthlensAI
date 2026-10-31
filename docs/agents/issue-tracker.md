@@ -88,7 +88,7 @@ These decide whether a verdict means what the principles say it means.
 
 | ID | Severity | Status | Finding |
 |---|---|---|---|
-| TL-004 | medium | planned | Compound roll-up can be decisive over a `Not fact-checkable` element |
+| TL-004 | medium | closed | Compound roll-up can be decisive over a `Not fact-checkable` element |
 | TL-005 | medium | planned | One-word overlap passages can reach the judge as `pageBest` |
 | TL-006 | medium | planned | Stability gate downgrades too narrowly and repeat judging costs too much |
 
@@ -312,3 +312,8 @@ TL-002. Export renders any record the client posts. Closed in
 TL-003. Document event stream has no owner check. Closed in
 `fix: owner-check document event stream (TL-003)`. Pinned by
 `tests/reader.test.mjs` and `tests/auth.test.mjs`.
+
+TL-004. Compound roll-up can be decisive over a `Not fact-checkable`
+element. Closed in
+`fix: cap compound roll-up over opinion elements (TL-004)`. Pinned by
+`tests/fusion.test.mjs`.
