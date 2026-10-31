@@ -100,6 +100,7 @@ delete process.env.META_MODEL_API_URL;
 delete process.env.META_MODEL_API_KEY;
 
 const { createDocument, getDocument, whenAutoVerificationDone } = await import('../lib/documents.mjs');
+const { createSessionToken, authSecret } = await import('../lib/auth.mjs');
 const exportRoute = await import('../app/api/export/route.js');
 
 const postExport = (body) => exportRoute.POST(new Request('http://t/api/export', {
@@ -135,6 +136,35 @@ test('export route 404s an unknown document and an unknown claim', async () => {
   const claim = doc.claims.find((c) => c.status === 'verified');
   assert.equal((await postExport({ docId: 'doc-999999', claimId: claim.id })).status, 404);
   assert.equal((await postExport({ docId: doc.id, claimId: 'no-such-claim' })).status, 404);
+});
+
+test('export route owner-checks when accounts are on (TL-019)', async () => {
+  const mk = async (owner) => {
+    const doc = await createDocument({ title: `Export ${owner}`, owner, pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
+    await whenAutoVerificationDone(doc.id);
+    const fresh = await getDocument(doc.id);
+    return { doc: fresh, claim: fresh.claims.find((c) => c.status === 'verified') };
+  };
+  const alice = await mk('alice');
+  const bob = await mk('bob');
+  const demo = await mk('demo');
+  assert.ok(alice.claim && bob.claim && demo.claim, 'seeded docs have verified claims');
+  const cookie = `tl_session=${encodeURIComponent(createSessionToken('alice', authSecret()))}`;
+  const as = (body, headers = {}) => exportRoute.POST(new Request('http://t/api/export', {
+    method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body),
+  }));
+  const saved = process.env.AUTH_ENABLED;
+  try {
+    process.env.AUTH_ENABLED = 'true';
+    assert.equal((await as({ docId: bob.doc.id, claimId: bob.claim.id }, { cookie })).status, 404, 'other user gets 404');
+    assert.equal((await as({ docId: bob.doc.id, claimId: bob.claim.id })).status, 404, 'anonymous gets 404');
+    assert.equal((await as({ docId: alice.doc.id, claimId: alice.claim.id }, { cookie })).status, 200, 'owner gets 200');
+    assert.equal((await as({ docId: demo.doc.id, claimId: demo.claim.id }, { cookie })).status, 200, 'demo doc gets 200');
+    delete process.env.AUTH_ENABLED;
+    assert.equal((await as({ docId: bob.doc.id, claimId: bob.claim.id })).status, 200, 'accounts off stays open');
+  } finally {
+    if (saved === undefined) delete process.env.AUTH_ENABLED; else process.env.AUTH_ENABLED = saved;
+  }
 });
 
 test('export route 422s a claim with no verdict yet', async () => {
