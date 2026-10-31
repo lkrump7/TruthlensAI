@@ -178,7 +178,7 @@ The screen and the downloaded report have to show the same record.
 | TL-011 | low | closed | Specs disagree on demo-mode stream stages |
 | TL-012 | low | closed | Progress events carry model and counts for some stages only |
 | TL-013 | medium | closed | Export omits run date and the model list |
-| TL-014 | low | planned | Demo arc is pinned in demo mode only |
+| TL-014 | low | closed | Demo arc is pinned in demo mode only |
 
 TL-011. Specs disagree on demo-mode stream stages.
 The hackathon-win plan says demo mode emits the same stage names with
@@ -358,3 +358,10 @@ Pinned by `tests/graph.test.mjs` and `tests/ui.test.mjs`.
 TL-013. Export omits run date and the model list.
 Closed in `fix: record run date and models in export (TL-013)`.
 Pinned by `tests/export.test.mjs`.
+
+TL-014. Demo arc is pinned in demo mode only.
+Closed in `feat: live demo-arc release gate (TL-014)`.
+Gate is `eval/live-arc.mjs`, run by hand before a release and kept
+out of `npm test`. No Meta key was at hand when this closed, so the
+live run has not been run. Without a key the gate exits 1 with a
+plain message. The live pass is left to the release checklist.

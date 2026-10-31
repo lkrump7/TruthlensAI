@@ -14,6 +14,7 @@ npm run dev
 Open http://localhost:3000 in your browser.
 
 Production: `npm run build && npm start`. Tests: `npm test` (328 tests, `node --test`), `npm run typecheck`, `npm run lint`, `npm run coverage`, `npm run eval` (live evaluation, needs the Meta key).
+Release check: `node eval/live-arc.mjs` runs the three demo claims live and passes only when each verdict matches the demo arc (needs the Meta key, exits 1 without one). Run it before a release. It is not part of `npm test`.
 
 Full stack with Postgres + FAISS + OCR sidecar: `docker compose up --build`, then open http://localhost:3000.
 Local sidecar without Docker: `.venv/bin/python services/sidecar.py 8100` and set `FAISS_SERVICE_URL=http://127.0.0.1:8100`.
