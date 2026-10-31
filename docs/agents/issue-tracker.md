@@ -52,7 +52,7 @@ will touch to say it. Fix them before any verdict work.
 
 | ID | Severity | Status | Finding |
 |---|---|---|---|
-| TL-001 | high | planned | Fetcher allows IPv4-mapped IPv6 private addresses |
+| TL-001 | high | closed | Fetcher allows IPv4-mapped IPv6 private addresses |
 | TL-002 | high | planned | Export renders any record the client posts |
 | TL-003 | medium | planned | Document event stream has no owner check |
 
@@ -301,5 +301,6 @@ touches it. `npm run eval` numbers settle the threshold half.
 
 ## Closed
 
-None yet from this review. Fixed issues land here with the commit that
-closed them and the test that proves it.
+TL-001. Fetcher allows IPv4-mapped IPv6 private addresses. Closed in
+`fix: block mapped IPv6 private hosts in fetcher (TL-001)`. Pinned by
+`tests/fetch.test.mjs`.
