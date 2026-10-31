@@ -177,7 +177,7 @@ The screen and the downloaded report have to show the same record.
 |---|---|---|---|
 | TL-011 | low | closed | Specs disagree on demo-mode stream stages |
 | TL-012 | low | closed | Progress events carry model and counts for some stages only |
-| TL-013 | medium | planned | Export omits run date and the model list |
+| TL-013 | medium | closed | Export omits run date and the model list |
 | TL-014 | low | planned | Demo arc is pinned in demo mode only |
 
 TL-011. Specs disagree on demo-mode stream stages.
@@ -354,3 +354,7 @@ a new feature.
 TL-012. Progress events are uneven.
 Closed in `fix: carry model and counts on progress events (TL-012)`.
 Pinned by `tests/graph.test.mjs` and `tests/ui.test.mjs`.
+
+TL-013. Export omits run date and the model list.
+Closed in `fix: record run date and models in export (TL-013)`.
+Pinned by `tests/export.test.mjs`.

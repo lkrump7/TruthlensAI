@@ -57,6 +57,31 @@ test('report prints the prompt version the record carries', () => {
   assert.match(md, /Prompt version: 2026-10-31/);
 });
 
+test('report records the run date and every model from judges plus judgedBy', () => {
+  const record = {
+    ...RECORD,
+    judgedBy: 'Muse Wonder',
+    judges: { spark: 'Supported', wonder: 'Contradicted', agreed: false },
+    history: [
+      { at: '2026-10-29T10:00:00.000Z', verdict: 'Supported', judgedBy: 'Muse Spark 1.3' },
+      { at: '2026-10-30T12:00:00.000Z', verdict: 'Contradicted', judgedBy: 'Muse Wonder' },
+    ],
+  };
+  const md = buildInvestigationReport(record, { now: new Date('2026-10-31T00:00:00Z') });
+  const modelsLine = md.split('\n').find((l) => l.startsWith('Models:')) || '';
+  assert.match(modelsLine, /Muse Spark 1\.3/);
+  assert.match(modelsLine, /Muse Wonder/);
+  assert.match(md, /^Run: 2026-10-30$/m);
+  assert.match(md, /^Exported: 2026-10-31$/m);
+});
+
+test('report gives Run: not recorded when the record has no history', () => {
+  const md = buildInvestigationReport({ text: 'A claim.', verdict: 'Supported', judgedBy: 'Muse Spark 1.3', mode: 'live', explanation: 'e', supporting: [], contradicting: [], limitations: ['l'] }, { now: new Date('2026-10-31T00:00:00Z') });
+  assert.match(md, /^Run: not recorded$/m);
+  const modelsLine = md.split('\n').find((l) => l.startsWith('Models:')) || '';
+  assert.match(modelsLine, /Muse Spark 1\.3/);
+});
+
 test('single-run stability never claims the runs disagreed', () => {
   const md = buildInvestigationReport({ ...RECORD, stability: { runs: 1, verdicts: ['Contradicted'], agreed: false, majority: 'Contradicted' } }, { now: new Date('2026-10-31T00:00:00Z') });
   assert.match(md, /No repeat run/);
