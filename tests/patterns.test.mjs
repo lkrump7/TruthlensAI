@@ -62,7 +62,7 @@ test('rankEvidence applies source tier weight and slices to maxEvidence', async 
 });
 
 test('GATES is a named list in pipeline order', () => {
-  assert.deepEqual(GATES.map((g) => g.name), ['citation', 'outdated', 'corroboration']);
+  assert.deepEqual(GATES.map((g) => g.name), ['citation', 'outdated', 'corroboration', 'stability']);
   for (const g of GATES) { assert.equal(typeof g.applies, 'function'); assert.equal(typeof g.apply, 'function'); }
 });
 

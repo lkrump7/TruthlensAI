@@ -51,3 +51,39 @@ test('graph state is checkpointed under the caller thread id', async () => {
   assert.equal(state.values.verdict, 'Contradicted');
   assert.ok(state.values.trajectory.includes('assemble'));
 });
+
+test('graph downgrades a decisive verdict when repeated judging flips', async () => {
+  let calls = 0;
+  const flipping = async ({ evidence }) => {
+    calls++;
+    const verdict = calls % 2 === 1 ? 'Contradicted' : 'Supported';
+    return { verdict, citedIds: evidence.map((e) => e.id), stances: Object.fromEntries(evidence.map((e) => [e.id, verdict === 'Contradicted' ? 'contradicts' : 'supports'])), explanation: 'Flip.' };
+  };
+  const r = await runInvestigationGraph('Humans only use 10% of their brains.', { search, fetchText, judge: flipping, challenge: null, cache: false });
+  assert.ok(r.stability, 'result carries stability');
+  assert.equal(r.stability.agreed, false);
+  assert.ok(r.stability.runs >= 2, 'judge ran more than once');
+  assert.ok(!['Supported', 'Contradicted'].includes(r.verdict), `unstable verdict must not stay decisive, got ${r.verdict}`);
+});
+
+test('graph reports progress once per finished node in trajectory order', async () => {
+  const seen = [];
+  const r = await runInvestigationGraph('Humans only use 10% of their brains.', { search, fetchText, judge, challenge: null, cache: false, onProgress: (stage, detail) => seen.push({ stage, detail }) });
+  assert.deepEqual(seen.map((s) => s.stage), r.trajectory);
+  const research = seen.find((s) => s.stage === 'research');
+  assert.ok(research.detail && typeof research.detail.fetched === 'number', 'research progress carries fetched count');
+});
+
+test('a material challenge revision gets its own stability check', async () => {
+  const judge = async ({ evidence, model }) => {
+    if (model === 'muse-wonder-1.0') return { verdict: 'Contradicted', citedIds: evidence.map((e) => e.id), stances: Object.fromEntries(evidence.map((e) => [e.id, 'contradicts'])), explanation: 'Revised.' };
+    return { verdict: 'Supported', citedIds: evidence.map((e) => e.id), stances: Object.fromEntries(evidence.map((e) => [e.id, 'supports'])), explanation: 'First pass.' };
+  };
+  const challenge = async () => ({ material: true, weakestEvidenceId: 'x', falsifier: 'f', alternative: 'a', unresolved: 'u' });
+  const r = await runInvestigationGraph('Humans only use 10% of their brains.', { search, fetchText, judge, challenge, cache: false });
+  assert.equal(r.preChallengeVerdict, 'Supported');
+  assert.equal(r.verdict, 'Contradicted');
+  assert.ok(r.stability, 'revised verdict carries stability');
+  assert.deepEqual(r.stability.verdicts, ['Contradicted', 'Contradicted', 'Contradicted'], 'stability describes the revised verdict, not the discarded one');
+  assert.equal(r.stability.agreed, true);
+});

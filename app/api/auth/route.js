@@ -1,13 +1,17 @@
-import { registerUser, authenticateUser, createSessionToken, currentUser, sessionCookie, authSecret } from '../../../lib/auth.mjs';
+import { registerUser, authenticateUser, createSessionToken, currentUser, sessionCookie, authSecret, authEnabled } from '../../../lib/auth.mjs';
 
 export async function GET(req) {
-  const user = currentUser(req);
-  return Response.json({ user: user?.username || null });
+  const enabled = authEnabled();
+  const user = enabled ? currentUser(req) : null;
+  return Response.json({ user: user?.username || null, authEnabled: enabled });
 }
 
 export async function POST(req) {
   const body = await req.json().catch(() => ({}));
   const { action, username, password } = body;
+  if (!authEnabled() && action !== 'logout') {
+    return Response.json({ error: 'Accounts are turned off on this deployment. You can use everything without signing in.' }, { status: 403 });
+  }
   try {
     if (action === 'logout') {
       return new Response(JSON.stringify({ user: null }), { headers: { 'content-type': 'application/json', 'set-cookie': 'tl_session=; HttpOnly; Path=/; Max-Age=0' } });

@@ -5,7 +5,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 process.env.TRUTHLENS_USERS_FILE = join(mkdtempSync(join(tmpdir(), 'tl-users-')), 'users.json');
-const { registerUser, authenticateUser, createSessionToken, verifySessionToken, hashPassword, verifyPassword } = await import('../lib/auth.mjs');
+const { registerUser, authenticateUser, createSessionToken, verifySessionToken, hashPassword, verifyPassword, authEnabled } = await import('../lib/auth.mjs');
+
+test('accounts are off by default and only on when AUTH_ENABLED opts in', () => {
+  assert.equal(authEnabled({}), false);
+  assert.equal(authEnabled({ AUTH_ENABLED: 'false' }), false);
+  assert.equal(authEnabled({ AUTH_ENABLED: '0' }), false);
+  assert.equal(authEnabled({ AUTH_ENABLED: 'true' }), true);
+  assert.equal(authEnabled({ AUTH_ENABLED: '1' }), true);
+  assert.equal(authEnabled({ AUTH_ENABLED: 'TRUE' }), true);
+});
 
 test('passwords are hashed with a salt and verify correctly', () => {
   const h = hashPassword('correct horse battery');

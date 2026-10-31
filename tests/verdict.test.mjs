@@ -31,3 +31,17 @@ test('outdated gate does not fire without dates on both sides', () => {
   const ctx = { verdict: 'Partially supported', supporting: [{ id: 'a', date: null }], contradicting: [{ id: 'b', date: '2020-01-01' }], cited: [], limitations: [] };
   assert.equal(applyOutdatedGate(ctx).verdict, 'Partially supported');
 });
+
+test('stability gate downgrades a decisive verdict whose judge runs disagreed', async () => {
+  const { applyGates } = await import('../lib/verdict.mjs');
+  const ctx = { verdict: 'Supported', supporting: [{ id: 'a', source: 'x.com' }, { id: 'b', source: 'y.edu' }], contradicting: [], cited: [{ id: 'a', source: 'x.com' }, { id: 'b', source: 'y.edu' }], limitations: [], stability: { runs: 3, verdicts: ['Supported', 'Contradicted', 'Supported'], agreed: false, majority: 'Supported' } };
+  const out = applyGates(ctx);
+  assert.equal(out.verdict, 'Partially supported');
+  assert.ok(out.limitations.some((l) => /judge runs disagreed/i.test(l)));
+});
+
+test('stability gate leaves an agreed decisive verdict alone', async () => {
+  const { applyGates } = await import('../lib/verdict.mjs');
+  const ctx = { verdict: 'Supported', supporting: [{ id: 'a', source: 'x.com' }, { id: 'b', source: 'y.edu' }], contradicting: [], cited: [{ id: 'a', source: 'x.com' }, { id: 'b', source: 'y.edu' }], limitations: [], stability: { runs: 3, verdicts: ['Supported', 'Supported', 'Supported'], agreed: true, majority: 'Supported' } };
+  assert.equal(applyGates(ctx).verdict, 'Supported');
+});

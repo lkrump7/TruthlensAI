@@ -49,7 +49,17 @@ test('integration: documents route creates and lists a document without leaking 
   assert.ok(list.documents.some((d) => d.title === 'Int Doc'));
 });
 
+test('integration: auth route is closed by default and reports accounts disabled', async () => {
+  delete process.env.AUTH_ENABLED;
+  const res = await authPost(jsonReq('http://t/api/auth', { action: 'register', username: 'zoe', password: 'long-enough' }));
+  assert.equal(res.status, 403);
+  const me = await (await authGet(new Request('http://t/api/auth'))).json();
+  assert.equal(me.authEnabled, false);
+  assert.equal(me.user, null);
+});
+
 test('integration: auth route registers, logs in, and rejects bad credentials', async () => {
+  process.env.AUTH_ENABLED = 'true';
   const bad = await authPost(jsonReq('http://t/api/auth', { action: 'login', username: 'alice', password: 'wrong-password' }));
   assert.equal(bad.status, 401);
   const reg = await authPost(jsonReq('http://t/api/auth', { action: 'register', username: 'alice', password: 'correct-horse' }));
@@ -60,6 +70,7 @@ test('integration: auth route registers, logs in, and rejects bad credentials', 
   assert.equal(me.user, 'alice');
   const anon = await (await authGet(new Request('http://t/api/auth'))).json();
   assert.equal(anon.user, null);
+  delete process.env.AUTH_ENABLED;
 });
 
 test('integration: contradiction map surfaces opposing documents as unverified disagreement', async () => {
@@ -107,6 +118,7 @@ test('sad: documents route rejects empty and oversized text', async () => {
 });
 
 test('sad: auth route rejects unknown actions, weak passwords and duplicates; logout clears the session', async () => {
+  process.env.AUTH_ENABLED = 'true';
   assert.equal((await authPost(jsonReq('http://t/api/auth', { action: 'dance', username: 'bob', password: 'long-enough' }))).status, 400);
   assert.equal((await authPost(jsonReq('http://t/api/auth', { action: 'register', username: 'bob', password: 'short' }))).status, 400);
   assert.equal((await authPost(jsonReq('http://t/api/auth', { action: 'register', username: 'b b', password: 'long-enough' }))).status, 400);
@@ -115,6 +127,7 @@ test('sad: auth route rejects unknown actions, weak passwords and duplicates; lo
   const out = await authPost(jsonReq('http://t/api/auth', { action: 'logout' }));
   assert.equal(out.status, 200);
   assert.match(out.headers.get('set-cookie'), /Max-Age=0/);
+  delete process.env.AUTH_ENABLED;
 });
 
 test('sad+happy: recheck route 404s unknown documents and rechecks known ones', async () => {

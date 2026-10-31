@@ -1,0 +1,61 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+const dir = mkdtempSync(join(tmpdir(), 'tl-media-'));
+process.env.TRUTHLENS_STORE_FILE = join(dir, 'documents.json');
+process.env.TRUTHLENS_USERS_FILE = join(dir, 'users.json');
+delete process.env.META_MODEL_API_URL;
+delete process.env.META_MODEL_API_KEY;
+
+const { createDocument, getDocument } = await import('../lib/documents.mjs');
+const { POST: imagePost } = await import('../app/api/documents/image/route.js');
+const { POST: videoPost } = await import('../app/api/documents/video/route.js');
+const { mimeForVideoFile } = await import('../lib/video.mjs');
+
+test('createDocument keeps image and video kinds and their media summary', async () => {
+  const img = await createDocument({ title: 'Sign photo', kind: 'image', media: { caption: 'A sign says water boils at 100 degrees Celsius at sea level.', model: 'muse-spark-1.3' }, pages: [{ page: 1, text: 'A sign says water boils at 100 degrees Celsius at sea level in kitchens.' }] });
+  assert.equal(img.kind, 'image');
+  assert.equal(img.media.caption, 'A sign says water boils at 100 degrees Celsius at sea level.');
+  assert.equal((await getDocument(img.id)).kind, 'image');
+
+  const vid = await createDocument({ title: 'Lecture clip', kind: 'video', media: { durationSec: 75, model: 'muse-spark-1.3', voiceModel: 'muse-voice-transcribe-1.0' }, pages: [{ page: 1, text: '[00:00–00:50] Speech: Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
+  assert.equal(vid.kind, 'video');
+  assert.equal(vid.media.durationSec, 75);
+
+  const book = await createDocument({ title: 'Plain', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
+  assert.equal(book.kind, 'book');
+  assert.equal(book.media, undefined);
+});
+
+test('mimeForVideoFile maps common video extensions and rejects others', () => {
+  assert.equal(mimeForVideoFile('a.MP4'), 'video/mp4');
+  assert.equal(mimeForVideoFile('a.mov'), 'video/quicktime');
+  assert.equal(mimeForVideoFile('a.webm'), 'video/webm');
+  assert.equal(mimeForVideoFile('a.mkv'), 'video/x-matroska');
+  assert.equal(mimeForVideoFile('a.png'), null);
+});
+
+function uploadReq(url, name, bytes, type = 'application/octet-stream') {
+  const form = new FormData();
+  form.append('file', new Blob([bytes], { type }), name);
+  return new Request(url, { method: 'POST', body: form });
+}
+
+test('image route refuses a missing file, a wrong type, and unconfigured Meta', async () => {
+  assert.equal((await imagePost(new Request('http://t/api/documents/image', { method: 'POST' }))).status, 400);
+  assert.equal((await imagePost(uploadReq('http://t/api/documents/image', 'notes.txt', Buffer.from('hello')))).status, 400);
+  const res = await imagePost(uploadReq('http://t/api/documents/image', 'sign.png', Buffer.from([137, 80, 78, 71]), 'image/png'));
+  assert.equal(res.status, 503);
+  assert.match((await res.json()).error, /Muse Spark|Meta/i);
+});
+
+test('video route refuses a missing file, a wrong type, and unconfigured Meta', async () => {
+  assert.equal((await videoPost(new Request('http://t/api/documents/video', { method: 'POST' }))).status, 400);
+  assert.equal((await videoPost(uploadReq('http://t/api/documents/video', 'sign.png', Buffer.from('hello')))).status, 400);
+  const res = await videoPost(uploadReq('http://t/api/documents/video', 'clip.mp4', Buffer.from('fake'), 'video/mp4'));
+  assert.equal(res.status, 503);
+  assert.match((await res.json()).error, /Meta/i);
+});
