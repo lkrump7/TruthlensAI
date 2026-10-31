@@ -49,7 +49,7 @@ test('evidence carries neighbouring-window context for the judge, citation text 
   assert.doesNotMatch(item.passage, /marina/, 'the cited passage itself stays the extracted window');
 });
 
-test('research keeps a page whose only window shares one strong term, marked pageBest', async () => {
+test('research drops a page whose only window shares one strong term (TL-005)', async () => {
   const sources = [
     { title: 'Scan', url: 'https://scan.example/brain' },
     { title: 'Myth', url: 'https://myth.example/brain' },
@@ -59,9 +59,8 @@ test('research keeps a page whose only window shares one strong term, marked pag
     ? '<body><p>Brain imaging shows activity across the whole brain during a day of ordinary tasks and sleep.</p></body>'
     : '<body><p>Neuroscientists call the ten percent brain story a myth with no basis in scanning studies of brains.</p></body>');
   const r = await researchClaim('Humans only use 10% of their brains.', { search, fetchText, cache: false, embedTexts: async () => null, rerankTexts: async () => null });
-  const scan = r.evidence.find((e) => /imaging shows activity/.test(e.passage));
-  assert.ok(scan, 'single-overlap page must not vanish at extraction');
-  assert.equal(scan.pageBest, true);
+  assert.ok(!r.evidence.some((e) => /imaging shows activity/.test(e.passage)), 'single-overlap page is below the relevance floor');
+  assert.ok(r.evidence.some((e) => /ten percent brain story/.test(e.passage)), 'two-word-overlap page still contributes');
 });
 
 test('research tolerates a fetched page with no extractable text', async () => {
@@ -97,13 +96,13 @@ test('marginal-gain stopping: research keeps fetching while batches add new pass
   let fetches = 0;
   const findings = [
     'Brain scans show activity throughout the brain every day, contradicting the ten percent myth.',
-    'Electrophysiology recordings find every brain region active across the sleep cycle.',
-    'Lesion studies show damage anywhere in the brain impairs some function; no silent 90 percent exists.',
-    'Metabolic measurements find the brain consumes steady energy in all regions at rest.',
-    'Neuroimaging reviews conclude the ten percent figure has no basis in scan data.',
-    'Stimulation mapping locates function across the whole cortex, not a tenth of it.',
-    'Longitudinal scans track widespread daily activity in every lobe of the brain.',
-    'Case series of brain injuries show deficits from lesions in every region studied.',
+    'Electrophysiology recordings find every brain region active across the sleep cycle, against the ten percent story.',
+    'Lesion studies show damage anywhere in the brain impairs some function; no silent region supports the ten percent claim.',
+    'Metabolic measurements find the brain consumes steady energy in all regions at rest, never idle at ten percent.',
+    'Neuroimaging reviews conclude the ten percent figure about brains has no basis in scan data.',
+    'Stimulation mapping locates function across the whole cortex of the brain, not in ten percent of it.',
+    'Longitudinal scans track widespread daily activity in every lobe of the brain, refuting the ten percent figure.',
+    'Case series of brain injuries show deficits from lesions in every region studied, with no ten percent refuge.',
   ];
   const fetchText = async (url) => { fetches++; const n = Number(url.match(/s(\d)/)[1]); return `<body><p>${findings[n]}</p></body>`; };
   const r = await researchClaim('Humans only use 10% of their brains.', { search, fetchText, cache: false });
@@ -144,7 +143,7 @@ test('pipeline sends the whole budgeted pool to the judge, utility-ordered', asy
   const distinct = {
     'https://a.example/brain': 'Brain scans show activity throughout the brain every day, contradicting the ten percent myth about brains and brains imaging.',
     'https://b.example/brain': 'Electrophysiology recordings find every brain region active across the sleep cycle, against the ten percent story.',
-    'https://c.example/brain': 'Lesion studies show damage anywhere in the brain impairs function; no silent ninety percent of brains exists.',
+    'https://c.example/brain': 'Lesion studies show damage anywhere in the brain impairs function; no silent ninety percent of brains exists behind the ten percent claim.',
     'https://d.example/brain': 'Metabolic measurements find the brain consuming steady energy in all regions, brains never idle at ten percent.',
     'https://e.example/brain': 'Neuroimaging reviews conclude the ten percent figure for brains has no basis in any scan data collected.',
   };

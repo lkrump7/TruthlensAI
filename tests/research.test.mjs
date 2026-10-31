@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseSearchResponse, extractPassage, extractPassages, researchClaim, responsesUrl, verifyResearchedClaim, extractPublishedDate, sourceTier, assertPublicUrl, fetchPageText, BUDGET } from '../lib/research.mjs';
+import { researchStage } from '../lib/stages.mjs';
 
 const SAMPLE = {
   output: [
@@ -378,6 +379,26 @@ test('sad: a throwing challenger leaves the gated verdict untouched', async () =
   assert.equal(r.verdict, 'Contradicted');
   assert.equal(r.challenge, undefined);
   assert.equal(r.preChallengeVerdict, undefined);
+});
+
+test('researchStage drops a page whose best window shares only one content word with the claim', async () => {
+  // Exactly one stemmed claim token ("brain") overlaps; see claimOverlapCount probe in report.
+  const search = async () => ({ queries: ['q'], citations: [], sources: [{ title: 'Scan', url: 'https://scan.example/brain' }] });
+  const fetchText = async () => '<body><p>Brain imaging shows activity across the whole organ during ordinary tasks and sleep cycles today.</p></body>';
+  const out = await researchStage('Humans only use 10% of their brains.', 'Statistical', { search, fetchText, cache: false, embedTexts: async () => null, rerankTexts: async () => null });
+  assert.equal(out.research.evidence.length, 0);
+  assert.equal(out.judgeEvidence.length, 0);
+  assert.equal(out.final.verdict, 'Unverifiable');
+});
+
+test('researchStage keeps a page whose best window shares two content words with the claim', async () => {
+  // Two stemmed claim tokens ("brain", "ten") overlap, meeting CONFIG.KEYWORD_OVERLAP_MIN.
+  const search = async () => ({ queries: ['q'], citations: [], sources: [{ title: 'Scan', url: 'https://scan.example/brain' }] });
+  const fetchText = async () => '<body><p>Brain scans show activity at ten sites across the organ during ordinary tasks today.</p></body>';
+  const out = await researchStage('Humans only use 10% of their brains.', 'Statistical', { search, fetchText, cache: false, embedTexts: async () => null, rerankTexts: async () => null });
+  assert.equal(out.research.evidence.length, 1);
+  assert.match(out.research.evidence[0].passage, /Brain scans/);
+  assert.equal(out.final, null);
 });
 
 test('sad: a throwing judge propagates instead of inventing a verdict', async () => {
