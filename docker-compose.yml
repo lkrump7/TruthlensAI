@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: truthlens
+      POSTGRES_PASSWORD: truthlens
+      POSTGRES_DB: truthlens
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+  sidecar:
+    build:
+      context: .
+      dockerfile: services/Dockerfile
+    ports:
+      - "8100:8100"
+    volumes:
+      - faissdata:/app/data/faiss
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://truthlens:truthlens@db:5432/truthlens
+      FAISS_SERVICE_URL: http://sidecar:8100
+      AUTH_SECRET: ${AUTH_SECRET:-change-me-in-production}
+      META_MODEL_API_URL: ${META_MODEL_API_URL:-https://api.meta.ai/v1/chat/completions}
+      META_MODEL_API_KEY: ${META_MODEL_API_KEY:-}
+      META_SPARK_MODEL: ${META_SPARK_MODEL:-muse-spark-1.3}
+      META_WONDER_MODEL: ${META_WONDER_MODEL:-muse-wonder-1.0}
+    depends_on:
+      - db
+      - sidecar
+    volumes:
+      - appdata:/app/data
+volumes:
+  pgdata:
+  faissdata:
+  appdata:

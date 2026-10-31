@@ -1,0 +1,12 @@
+[
+  { "claim": "Humans only use 10% of their brains.", "expected": ["Contradicted", "Partially supported"], "label": "contradicted" },
+  { "claim": "Water boils at 100 degrees Celsius at sea level.", "expected": ["Supported", "Partially supported"], "label": "supported" },
+  { "claim": "Pluto is a planet.", "expected": ["Contradicted", "Outdated", "Partially supported"], "label": "outdated" },
+  { "claim": "Apollo 11 landed on the Moon in 1969.", "expected": ["Supported", "Partially supported"], "label": "supported" },
+  { "claim": "The Great Wall of China is visible from space with the naked eye.", "expected": ["Misleading", "Contradicted", "Partially supported"], "label": "misleading" },
+  { "claim": "The Moon landing was a hoax staged in a film studio.", "expected": ["Contradicted", "Partially supported"], "label": "contradicted" },
+  { "claim": "I think this is the finest book ever written on the subject.", "expected": ["Not fact-checkable"], "label": "non-factual" },
+  { "claim": "The village of Upper Snelgrove brewed exactly 41 barrels of ale in March 1731.", "expected": ["Unverifiable"], "label": "unverifiable" },
+  { "claim": "A scientific study proved that a supplement increases intelligence by 40% in adults.", "expected": ["Unverifiable", "Partially supported", "Contradicted"], "label": "trap-inflated-effect" },
+  { "claim": "Humans evolved from chimpanzees, which is why we share most of our DNA with them.", "expected": ["Misleading", "Partially supported", "Contradicted"], "label": "trap-oversimplification" }
+]
