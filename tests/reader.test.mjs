@@ -257,6 +257,49 @@ test('concurrent reader submissions get distinct claim ids and both survive', as
   assert.ok(after.claims.some((c) => c.id === b.claim.id && /20 percent/.test(c.text)));
 });
 
+test('a verdict apply does not erase a follow-up saved during its slow verify (TL-007)', async () => {
+  const doc = await createDocument({ title: 'Verdict Race', owner: 'reader', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
+  await whenAutoVerificationDone(doc.id);
+  const claim = (await getDocument(doc.id)).claims[0];
+  const repo = repository();
+  const origLoadAll = repo.loadAll.bind(repo);
+  // Copy semantics, as Postgres gives. Paired loads snapshot at arrival and
+  // wait for each other, so the verdict load and the follow-up load both
+  // read pre-save state. A lone load (the locked path serializes them)
+  // proceeds after the timeout with its snapshot.
+  let waiters = [];
+  let timer = null;
+  const release = () => { const ws = waiters; waiters = []; if (timer) { clearTimeout(timer); timer = null; } for (const w of ws) w(); };
+  repo.loadAll = async () => {
+    const snapshot = structuredClone(await origLoadAll());
+    await new Promise((resolve) => {
+      waiters.push(resolve);
+      if (waiters.length >= 2) release();
+      else if (!timer) timer = setTimeout(release, 100);
+    });
+    return snapshot;
+  };
+  const stance = async () => ({ stance: 'discusses', reason: 'x' });
+  const verify = async ({ text }) => { await new Promise((r) => setTimeout(r, 20)); return { text, verdict: 'Supported', judgedBy: 'Muse Spark 1.3', supporting: [], contradicting: [], explanation: '' }; };
+  let assessed, challenged;
+  try {
+    [assessed, challenged] = await Promise.all([
+      assessDocumentClaim(doc.id, 'The reservoir reduced flooding deaths by 60 percent.', { stance, verify }),
+      challengeDocumentClaim(doc.id, claim.id, { kind: 'prove-wrong' }),
+    ]);
+  } finally { repo.loadAll = origLoadAll; }
+  assert.ok(assessed.claim.id);
+  assert.equal(challenged.followup.kind, 'prove-wrong');
+  const after = await getDocument(doc.id);
+  const savedClaim = after.claims.find((c) => c.id === assessed.claim.id);
+  assert.ok(savedClaim, 'verdict claim must survive');
+  assert.equal(savedClaim.status, 'verified');
+  assert.equal(savedClaim.verdict, 'Supported');
+  const target = after.claims.find((c) => c.id === claim.id);
+  assert.equal(target.followups?.length, 1, 'follow-up saved during the verdict apply must survive');
+  assert.equal(target.followups[0].kind, 'prove-wrong');
+});
+
 test('starting auto-verification twice runs one loop, not two', async () => {
   const doc = await createDocument({ title: 'Guard Book', owner: 'reader', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
   await whenAutoVerificationDone(doc.id);

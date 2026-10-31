@@ -125,7 +125,7 @@ enough to hit them.
 
 | ID | Severity | Status | Finding |
 |---|---|---|---|
-| TL-007 | medium | planned | `applyVerdict` still loses concurrent writes |
+| TL-007 | medium | closed | `applyVerdict` still loses concurrent writes |
 | TL-008 | low | planned | Duplicate claim text breaks the 20-claim auto-verify cap |
 
 TL-007. `applyVerdict` still loses concurrent writes.
@@ -325,3 +325,7 @@ Pinned by `tests/research.test.mjs` and `tests/utility.test.mjs`.
 TL-006. Stability gate is too narrow, and repeat judging is wasteful.
 Closed in `fix: stability gate target and repeat-run cost (TL-006)`.
 Pinned by `tests/stability.test.mjs` and `tests/verdict.test.mjs`.
+
+TL-007. `applyVerdict` still loses concurrent writes. Closed in
+`fix: lock verdict writes per document (TL-007)`. Pinned by
+`tests/reader.test.mjs`.
