@@ -255,3 +255,48 @@ modification. The single commit, ed9ffa5, has none of it. The hardening
 plan in docs/superpowers/plans/2026-10-31-hardening.md already lists
 "existing LangGraph pipeline" as its tech stack. Removing it would be
 a separate decision, not a fix for this session's work.
+
+## Update, 2026-10-31 (review fixes TL-001 to TL-018)
+
+The two-axis review of `ed9ffa5...HEAD` raised 22 findings. They now live
+in `docs/agents/issue-tracker.md`. Eighteen were open. Three were already
+decided on record and stayed decided. Two wait for an owner call. The fix
+plan is `docs/superpowers/plans/2026-10-31-review-fixes.md`, run in six
+phases on the `review-fixes` branch, one issue per task, test first, one
+review per task.
+
+Phase 1 closed the trust boundaries. The fetcher now blocks mapped and
+unspecified IPv6 hosts. Export renders only a stored verdict loaded by
+document and claim ID. The document event stream checks ownership when
+accounts are on. Phase 2 fixed verdict meaning. A compound claim with an
+opinion element can no longer roll up decisive. One-word passages no
+longer reach the judge. The stability gate can now abstain, and repeat
+judging runs only where a downgrade is possible. Phase 3 locked verdict
+writes per document and capped auto-verification by claim identity, so
+repeated text cannot break the 20-claim cap. Phase 4 fixed media status
+codes, stored video duration, and stopped hiding ffmpeg failures. Phase
+5 settled the demo stream wording, carried model and counts on every
+progress event, completed the export record with run date and model
+list, and added a live demo-arc release gate. Phase 6 removed dead
+config and shared the duplicated code shapes, verdict lists, and
+trajectory labels.
+
+Suite at close: 369 tests, 364 pass, 5 skipped, 0 fail. Typecheck, lint,
+and build green. No Meta key was set in the worktree, so `npm run eval`
+and the live half of TL-014 were not run. The live gate exits 1 with a
+plain message until a key exists. That is on the release checklist, not
+faked here.
+
+## Update, 2026-10-31 (final review fixes TL-019 to TL-021)
+
+The final whole-branch review raised three more findings, all closed
+test first. Export now checks ownership through one shared `canView`
+rule, and the document event stream uses the same rule instead of its
+own copy. Reader-pick marking moved inside the locked verdict apply,
+so a follow-up saved after the verdict is no longer erased by a second
+unlocked save. The fetcher fails closed on a mapped IPv6 tail it
+cannot parse; `isPrivateHost` is exported so that shape, which no URL
+can carry, is still pinned by a test. Two findings stay open on
+record: TL-022 groups the upkeep minors, and TL-023 tracks the
+remaining unlocked saves and the owner checks still missing on the
+other document routes.

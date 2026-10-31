@@ -55,6 +55,8 @@ will touch to say it. Fix them before any verdict work.
 | TL-001 | high | closed | Fetcher allows IPv4-mapped IPv6 private addresses |
 | TL-002 | high | closed | Export renders any record the client posts |
 | TL-003 | medium | closed | Document event stream has no owner check |
+| TL-019 | medium | closed | Export loads any document by ID with no owner check |
+| TL-021 | low | closed | Fetcher fails open on an unparseable mapped IPv6 tail |
 
 TL-001. Fetcher allows IPv4-mapped IPv6 private addresses.
 `isPrivateHost` in `lib/fetch.mjs:5` strips brackets and checks `::1`,
@@ -81,6 +83,27 @@ README promises owner-scoped documents. This route is new in the diff
 and it leaks for as long as the connection stays open. The other `[id]`
 routes share the pattern, so the fix sets the pattern for all of them.
 Plan phase 1, Task 3.
+
+TL-019. Export loads any document by ID with no owner check.
+TL-002 made export render a stored verdict named by document and claim
+ID, but `app/api/export/route.js` loaded that document with no owner
+gate. Document IDs are sequential, so with accounts on, any signed-in
+reader could export another reader's verdicts. The fix adds one shared
+rule, `canView` in `lib/auth.mjs`: accounts off means open, accounts on
+means the owner or a demo document. The export route and the event
+stream in TL-003 now both use it, so the two rules cannot drift. Raised
+by the final whole-branch review.
+
+TL-021. Fetcher fails open on an unparseable mapped IPv6 tail.
+`isPrivateHost` in `lib/fetch.mjs` parses the tail of a `::ffff:` host
+as dotted IPv4 or as hex. A tail that parses as neither returned
+`false`, public. A URL cannot carry such a tail, the parser rejects it
+first, but `assertHostResolvesPublic` feeds raw DNS answers to the same
+check, and a malformed answer would pass as public. The tail now fails
+closed. `isPrivateHost` is exported as the test seam, because the bad
+shape cannot arrive through `assertPublicUrl`. Raised by the final
+whole-branch review; first noted as a deferred minor under TL-001.
+
 
 ### Section 2. Verdict invariants
 
@@ -127,6 +150,8 @@ enough to hit them.
 |---|---|---|---|
 | TL-007 | medium | closed | `applyVerdict` still loses concurrent writes |
 | TL-008 | low | closed | Duplicate claim text breaks the 20-claim auto-verify cap |
+| TL-020 | medium | closed | Reader-pick marking saves outside the document lock |
+| TL-023 | medium | open | Unlocked saves and owner checks on the remaining document routes |
 
 TL-007. `applyVerdict` still loses concurrent writes.
 `applyVerdict` in `lib/documents.mjs:80` reloads the document, changes
@@ -142,6 +167,25 @@ from claim text. Two claims with the same text both match, so both get
 `autoSelected`. The cap in `CONFIG.MAX_CLAIMS_PER_DOCUMENT` is 20 and the
 README promises 20 deep checks per book. Duplicate text in a real book
 is common, so the overrun is common too. Plan phase 3, Task 8.
+
+TL-020. Reader-pick marking saves outside the document lock.
+`verifyClaimLocked` in `lib/documents.mjs` applied the verdict inside
+`runDocLocked`, then set `source` to `reader-pick` on that copy and
+saved again outside the lock. A follow-up saved between the two saves
+was erased by the second one, the TL-007 window one step later. The
+marking now happens inside the locked apply, before the report is
+built, so there is no second save. Raised by the final whole-branch
+review.
+
+TL-023. Unlocked saves and owner checks on the remaining routes. Open.
+Two follow-ups, neither fixed yet. `recheckDocument` and `setAutoPaused`
+in `lib/documents.mjs` still save outside `runDocLocked`, the same
+load-to-save window TL-007 and TL-020 closed elsewhere; a verdict or
+follow-up landing inside that window can be overwritten. And the other
+`[id]` routes (assess, auto, recheck, claim verify and challenge) still
+load any document by ID with no owner check when accounts are on. The
+pattern is now set by `canView` in `lib/auth.mjs`. Extending it route
+by route, and locking those two saves, is its own change.
 
 ### Section 4. Media input contracts
 
@@ -222,6 +266,7 @@ No wrong answers here. These cost money or slow down the next change.
 | TL-016 | low | closed | Duplicated idempotency tail and duplicated stability loop |
 | TL-017 | low | closed | Verdict strings are listed in four-plus places |
 | TL-018 | low | closed | Trajectory labels do not match graph node names |
+| TL-022 | low | open | Upkeep bundle from the final review |
 
 TL-015. `BUDGET.maxJudgeCalls` is dead config.
 `BUDGET.maxJudgeCalls` is 2 in `lib/fetch.mjs:3` and nothing reads it,
@@ -246,6 +291,19 @@ TL-018. Trajectory labels do not match node names.
 Graph nodes are `researchNode` and `challengeNode` in `lib/graph.mjs:32`,
 and the trajectory records `research` and `challenge`. The record should
 name what ran. Rename one side so they match. Plan phase 6, Task 18.
+
+TL-022. Upkeep bundle from the final review. Open.
+Small items with no wrong answer by themselves, grouped so they land
+in one tidy-up change. The `pageBest` mark in `lib/evidence.mjs` is
+inert since TL-005: it still tags fallback passages, and nothing reads
+the tag. The `DISPUTED` alias of `ESCALATION_VERDICTS` in
+`lib/report.mjs` merges two meanings under one name. Progress events
+and trajectory entries name the same stages two ways. The final review
+also left test and seam minors: mid-file imports and slow re-seeding
+in `tests/export.test.mjs`, the wider `deps.extractClaims` seam, the
+reused judge arguments object, and per-chunk ffprobe calls. None of
+these changes behaviour on its own. Raised by the final whole-branch
+review.
 
 ## Decided. Checked and left as it is
 
@@ -392,3 +450,20 @@ Pinned by `tests/graph.test.mjs`. The trajectory side moved:
 LangGraph nodes. The node side could not move, because
 `research` and `challenge` are state channel names and
 LangGraph rejects a node name that matches a channel.
+
+TL-019. Export loads any document by ID with no owner check.
+Closed in `fix: owner-check document export (TL-019)`.
+Pinned by `tests/export.test.mjs`. One shared rule, `canView` in
+`lib/auth.mjs`, now gates both the export route and the TL-003 event
+stream: another reader's document 404s, the owner's and demo
+documents return 200, and accounts off stays open.
+
+TL-020. Reader-pick marking saves outside the document lock.
+Closed in `fix: mark reader-pick inside locked verdict apply (TL-020)`.
+Pinned by `tests/reader.test.mjs`. The marking moved into the locked
+verdict apply, so a follow-up saved after the verdict survives.
+
+TL-021. Fetcher fails open on an unparseable mapped IPv6 tail.
+Closed in `fix: fail closed on unparseable mapped IPv6 tail (TL-021)`.
+Pinned by `tests/fetch.test.mjs` through the exported `isPrivateHost`
+seam, because a malformed mapped tail cannot arrive through a URL.
