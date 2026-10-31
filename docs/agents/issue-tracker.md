@@ -126,7 +126,7 @@ enough to hit them.
 | ID | Severity | Status | Finding |
 |---|---|---|---|
 | TL-007 | medium | closed | `applyVerdict` still loses concurrent writes |
-| TL-008 | low | planned | Duplicate claim text breaks the 20-claim auto-verify cap |
+| TL-008 | low | closed | Duplicate claim text breaks the 20-claim auto-verify cap |
 
 TL-007. `applyVerdict` still loses concurrent writes.
 `applyVerdict` in `lib/documents.mjs:80` reloads the document, changes
@@ -329,3 +329,7 @@ Pinned by `tests/stability.test.mjs` and `tests/verdict.test.mjs`.
 TL-007. `applyVerdict` still loses concurrent writes. Closed in
 `fix: lock verdict writes per document (TL-007)`. Pinned by
 `tests/reader.test.mjs`.
+
+TL-008. Duplicate claim text breaks the 20-claim auto-verify cap.
+Closed in `fix: cap auto-verification by claim identity (TL-008)`.
+Pinned by `tests/reader.test.mjs`.

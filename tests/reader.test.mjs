@@ -18,6 +18,7 @@ const verifyClaimRoute = await import('../app/api/documents/[id]/claims/[claimId
 const assessRoute = await import('../app/api/documents/[id]/assess/route.js');
 const eventsRoute = await import('../app/api/documents/[id]/events/route.js');
 const { createSessionToken, authSecret } = await import('../lib/auth.mjs');
+const { CONFIG } = await import('../lib/config.mjs');
 
 const bigBook = () => {
   const pages = [];
@@ -34,6 +35,25 @@ test('createDocument preserves every extracted claim; only the top 20 are auto-s
   assert.equal(auto.length, 20);
   assert.ok(doc.claims.some((c) => !c.autoSelected && c.status === 'unverified'));
   assert.ok(doc.claims.every((c) => c.source === 'auto'));
+});
+
+test('duplicate claim text does not break the auto-verify cap (TL-008)', async () => {
+  const savedCap = CONFIG.MAX_CLAIMS_PER_DOCUMENT;
+  CONFIG.MAX_CLAIMS_PER_DOCUMENT = 1;
+  try {
+    const text = 'Water boils at 100 degrees Celsius at sea level in kitchens.';
+    // The real extractor dedupes exact text (lib/claims.mjs), so three
+    // claim objects with one text reach createDocument only through the
+    // deps seam. Pin the cap where createDocument applies it.
+    const extractClaims = async () => [1, 2, 3].map((page) => ({ text, type: 'Scientific', page, pages: [page], internalContradiction: false }));
+    const doc = await createDocument({ title: 'Duplicate Book', owner: 'reader', pages: [{ page: 1, text }] }, { extractClaims });
+    assert.equal(doc.foundClaims, 3);
+    assert.equal(doc.claims.filter((c) => c.autoSelected).length, 1);
+    assert.equal(doc.claims[0].autoSelected, true);
+    assert.equal(doc.deferredClaims, 2);
+    assert.ok(doc.claims.slice(1).every((c) => !c.autoSelected && c.status === 'unverified'));
+    await whenAutoVerificationDone(doc.id);
+  } finally { CONFIG.MAX_CLAIMS_PER_DOCUMENT = savedCap; }
 });
 
 test('background auto-verification settles the top 20 and leaves the rest unverified', async () => {
