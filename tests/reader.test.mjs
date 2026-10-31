@@ -84,6 +84,33 @@ test('reader can verify any not-yet-verified claim on demand', async () => {
   assert.equal(await verifyDocumentClaim('doc-999999', pick.id), null);
 });
 
+test('reader-pick marking does not erase a follow-up saved after the verdict (TL-020)', async () => {
+  const doc = await createDocument({ title: 'Pick Race Book', owner: 'reader', pages: bigBook() });
+  await whenAutoVerificationDone(doc.id);
+  const pick = (await getDocument(doc.id)).claims.find((c) => c.status === 'unverified');
+  assert.ok(pick);
+  const repo = repository();
+  const origSave = repo.save.bind(repo);
+  const origLoadAll = repo.loadAll.bind(repo);
+  let injected = false;
+  repo.save = async (d) => {
+    await origSave(d);
+    if (!injected && d.id === doc.id && d.claims.find((c) => c.id === pick.id)?.status === 'verified') {
+      injected = true;
+      const stored = structuredClone((await origLoadAll()).find((x) => x.id === doc.id));
+      const target = stored.claims.find((c) => c.id === pick.id);
+      target.followups = [{ at: new Date().toISOString(), kind: 'custom', instruction: 'concurrent', verdict: target.verdict, judgedBy: target.judgedBy, explanation: '', supporting: [], contradicting: [] }];
+      await origSave(stored);
+    }
+  };
+  let out;
+  try { out = await verifyDocumentClaim(doc.id, pick.id); } finally { repo.save = origSave; }
+  assert.equal(out.claim.source, 'reader-pick');
+  const saved = (await getDocument(doc.id)).claims.find((c) => c.id === pick.id);
+  assert.equal(saved.source, 'reader-pick');
+  assert.equal(saved.followups?.length, 1, 'follow-up saved after the verdict must survive reader-pick marking');
+});
+
 test('verify-claim route returns the verified claim and 404s unknown ids', async () => {
   const doc = await createDocument({ title: 'Route Book', owner: 'reader', pages: bigBook() });
   await whenAutoVerificationDone(doc.id);
