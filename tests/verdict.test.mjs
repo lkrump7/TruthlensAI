@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyCorroborationGate, applyOutdatedGate } from '../lib/verdict.mjs';
+import { applyCorroborationGate, applyOutdatedGate, applyStabilityGate } from '../lib/verdict.mjs';
 
 test('corroboration gate downgrades a decisive verdict backed by one domain', () => {
   const ctx = { verdict: 'Contradicted', supporting: [], contradicting: [{ id: 'a', source: 'x.com' }], cited: [{ id: 'a', source: 'x.com' }], limitations: [] };
@@ -36,6 +36,19 @@ test('stability gate downgrades a decisive verdict whose judge runs disagreed', 
   const { applyGates } = await import('../lib/verdict.mjs');
   const ctx = { verdict: 'Supported', supporting: [{ id: 'a', source: 'x.com' }, { id: 'b', source: 'y.edu' }], contradicting: [], cited: [{ id: 'a', source: 'x.com' }, { id: 'b', source: 'y.edu' }], limitations: [], stability: { runs: 3, verdicts: ['Supported', 'Contradicted', 'Supported'], agreed: false, majority: 'Supported' } };
   const out = applyGates(ctx);
+  assert.equal(out.verdict, 'Partially supported');
+  assert.ok(out.limitations.some((l) => /judge runs disagreed/i.test(l)));
+});
+
+test('stability gate gives Unverifiable for a split decisive verdict with no cited evidence (TL-006)', () => {
+  const ctx = { verdict: 'Supported', supporting: [], contradicting: [], unclassified: [], cited: [], limitations: [], stability: { runs: 3, verdicts: ['Supported', 'Contradicted', 'Supported'], agreed: false, majority: 'Supported' } };
+  const out = applyStabilityGate(ctx);
+  assert.equal(out.verdict, 'Unverifiable');
+});
+
+test('stability gate gives Partially supported for a split decisive verdict with cited evidence on both sides (TL-006)', () => {
+  const ctx = { verdict: 'Supported', supporting: [{ id: 'a', source: 'x.com' }], contradicting: [{ id: 'b', source: 'y.edu' }], unclassified: [], cited: [{ id: 'a', source: 'x.com' }, { id: 'b', source: 'y.edu' }], limitations: [], stability: { runs: 3, verdicts: ['Supported', 'Contradicted', 'Supported'], agreed: false, majority: 'Supported' } };
+  const out = applyStabilityGate(ctx);
   assert.equal(out.verdict, 'Partially supported');
   assert.ok(out.limitations.some((l) => /judge runs disagreed/i.test(l)));
 });

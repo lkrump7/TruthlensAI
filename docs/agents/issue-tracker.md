@@ -90,7 +90,7 @@ These decide whether a verdict means what the principles say it means.
 |---|---|---|---|
 | TL-004 | medium | closed | Compound roll-up can be decisive over a `Not fact-checkable` element |
 | TL-005 | medium | closed | One-word overlap passages can reach the judge as `pageBest` |
-| TL-006 | medium | planned | Stability gate downgrades too narrowly and repeat judging costs too much |
+| TL-006 | medium | closed | Stability gate downgrades too narrowly and repeat judging costs too much |
 
 TL-004. Compound roll-up can be decisive over an opinion element.
 `rollupCompound` in `lib/pipeline.mjs:17` drops `Unverifiable` and
@@ -321,3 +321,7 @@ element. Closed in
 TL-005. One-word overlap passages can reach the judge as `pageBest`.
 Closed in `fix: hold fallback passages to relevance floor (TL-005)`.
 Pinned by `tests/research.test.mjs` and `tests/utility.test.mjs`.
+
+TL-006. Stability gate is too narrow, and repeat judging is wasteful.
+Closed in `fix: stability gate target and repeat-run cost (TL-006)`.
+Pinned by `tests/stability.test.mjs` and `tests/verdict.test.mjs`.
