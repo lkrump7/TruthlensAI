@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 process.env.TRUTHLENS_USERS_FILE = join(mkdtempSync(join(tmpdir(), 'tl-users-')), 'users.json');
-const { registerUser, authenticateUser, createSessionToken, verifySessionToken, hashPassword, verifyPassword, authEnabled } = await import('../lib/auth.mjs');
+const { registerUser, authenticateUser, createSessionToken, verifySessionToken, hashPassword, verifyPassword, authEnabled, requestUser, authSecret, sessionCookie } = await import('../lib/auth.mjs');
 
 test('accounts are off by default and only on when AUTH_ENABLED opts in', () => {
   assert.equal(authEnabled({}), false);
@@ -30,6 +30,21 @@ test('register then authenticate round-trips; duplicates and bad passwords fail'
   assert.equal(await authenticateUser('alice', 'nope-nope'), null);
   await assert.rejects(() => registerUser('alice', 'password-123'), /already exists/);
   await assert.rejects(() => registerUser('bob', 'short'), /8 characters/);
+});
+
+test('requestUser is null with accounts off and reads the session with accounts on', () => {
+  const cookie = sessionCookie(createSessionToken('alice', authSecret()));
+  const req = () => new Request('http://t/x', { headers: { cookie } });
+  const saved = process.env.AUTH_ENABLED;
+  try {
+    delete process.env.AUTH_ENABLED;
+    assert.equal(requestUser(req()), null);
+    process.env.AUTH_ENABLED = 'true';
+    assert.equal(requestUser(req()).username, 'alice');
+    assert.equal(requestUser(new Request('http://t/x')), null);
+  } finally {
+    if (saved === undefined) delete process.env.AUTH_ENABLED; else process.env.AUTH_ENABLED = saved;
+  }
 });
 
 test('session tokens verify, and tampered or expired tokens do not', () => {

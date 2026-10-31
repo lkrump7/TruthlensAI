@@ -17,6 +17,7 @@ const autoRoute = await import('../app/api/documents/[id]/auto/route.js');
 const verifyClaimRoute = await import('../app/api/documents/[id]/claims/[claimId]/verify/route.js');
 const assessRoute = await import('../app/api/documents/[id]/assess/route.js');
 const eventsRoute = await import('../app/api/documents/[id]/events/route.js');
+const { createSessionToken, authSecret } = await import('../lib/auth.mjs');
 
 const bigBook = () => {
   const pages = [];
@@ -310,6 +311,39 @@ test('events route streams the document snapshot as SSE', async () => {
   assert.match(new TextDecoder().decode(first.value), new RegExp(doc.id));
   await reader.cancel();
   assert.equal((await eventsRoute.GET(new Request('http://t/x'), { params: { id: 'doc-999999' } })).status, 404);
+});
+
+test('events route owner-checks the stream when accounts are on (TL-003)', async () => {
+  const aliceDoc = await createDocument({ title: 'Alice Stream', owner: 'alice', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
+  const bobDoc = await createDocument({ title: 'Bob Stream', owner: 'bob', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
+  const demoDoc = await createDocument({ title: 'Demo Stream', owner: 'demo', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
+  const cookie = `tl_session=${encodeURIComponent(createSessionToken('alice', authSecret()))}`;
+  const asAlice = () => new Request('http://t/x', { headers: { cookie } });
+  const readFirst = async (res) => {
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('content-type'), 'text/event-stream');
+    const reader = res.body.getReader();
+    const first = await reader.read();
+    assert.match(new TextDecoder().decode(first.value), /data: /);
+    await reader.cancel();
+  };
+  const saved = process.env.AUTH_ENABLED;
+  try {
+    process.env.AUTH_ENABLED = 'true';
+    const denied = await eventsRoute.GET(asAlice(), { params: { id: bobDoc.id } });
+    if (denied.status !== 404) await denied.body?.cancel().catch(() => {});
+    assert.equal(denied.status, 404);
+    assert.deepEqual(await denied.json(), { error: 'Document not found.' });
+    const anonDenied = await eventsRoute.GET(new Request('http://t/x'), { params: { id: bobDoc.id } });
+    if (anonDenied.status !== 404) await anonDenied.body?.cancel().catch(() => {});
+    assert.equal(anonDenied.status, 404);
+    await readFirst(await eventsRoute.GET(asAlice(), { params: { id: aliceDoc.id } }));
+    await readFirst(await eventsRoute.GET(asAlice(), { params: { id: demoDoc.id } }));
+    delete process.env.AUTH_ENABLED;
+    await readFirst(await eventsRoute.GET(new Request('http://t/x'), { params: { id: bobDoc.id } }));
+  } finally {
+    if (saved === undefined) delete process.env.AUTH_ENABLED; else process.env.AUTH_ENABLED = saved;
+  }
 });
 
 test('a document orphaned mid-verification resumes when listed again', async () => {

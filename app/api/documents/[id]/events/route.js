@@ -1,9 +1,15 @@
 import { getDocument } from '../../../../../lib/documents.mjs';
 import { docEvents } from '../../../../../lib/events.mjs';
+import { authEnabled, requestUser } from '../../../../../lib/auth.mjs';
 
 export async function GET(req, { params }) {
   const doc = await getDocument(params.id);
   if (!doc) return Response.json({ error: 'Document not found.' }, { status: 404 });
+  if (authEnabled()) {
+    const username = requestUser(req)?.username;
+    const owner = doc.owner || 'demo';
+    if (owner !== 'demo' && owner !== username) return Response.json({ error: 'Document not found.' }, { status: 404 });
+  }
   const encoder = new TextEncoder();
   let onChanged;
   let heartbeat;

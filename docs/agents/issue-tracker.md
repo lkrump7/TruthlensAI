@@ -54,7 +54,7 @@ will touch to say it. Fix them before any verdict work.
 |---|---|---|---|
 | TL-001 | high | closed | Fetcher allows IPv4-mapped IPv6 private addresses |
 | TL-002 | high | closed | Export renders any record the client posts |
-| TL-003 | medium | planned | Document event stream has no owner check |
+| TL-003 | medium | closed | Document event stream has no owner check |
 
 TL-001. Fetcher allows IPv4-mapped IPv6 private addresses.
 `isPrivateHost` in `lib/fetch.mjs:5` strips brackets and checks `::1`,
@@ -308,3 +308,7 @@ TL-001. Fetcher allows IPv4-mapped IPv6 private addresses. Closed in
 TL-002. Export renders any record the client posts. Closed in
 `fix: export stored verdicts only (TL-002)`. Pinned by
 `tests/export.test.mjs`.
+
+TL-003. Document event stream has no owner check. Closed in
+`fix: owner-check document event stream (TL-003)`. Pinned by
+`tests/reader.test.mjs` and `tests/auth.test.mjs`.
