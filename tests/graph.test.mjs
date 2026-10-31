@@ -74,6 +74,30 @@ test('graph reports progress once per finished node in trajectory order', async 
   assert.ok(research.detail && typeof research.detail.fetched === 'number', 'research progress carries fetched count');
 });
 
+test('progress events carry model on every stage and counts on research', async () => {
+  const { getModels } = await import('../lib/meta.mjs');
+  const models = getModels();
+  const seen = [];
+  await runInvestigationGraph('Humans only use 10% of their brains.', { search, fetchText, judge, challenge: null, cache: false, onProgress: (stage, detail) => seen.push({ stage, detail }) });
+  assert.deepEqual(seen.map((s) => s.stage), ['triage', 'research', 'judge', 'gates', 'challenge', 'assemble']);
+  for (const { stage, detail } of seen) {
+    assert.equal(typeof detail?.model, 'string', `${stage} progress carries a model`);
+    assert.ok(detail.model.length > 0, `${stage} progress model is not empty`);
+  }
+  const byStage = Object.fromEntries(seen.map((s) => [s.stage, s.detail]));
+  assert.equal(byStage.triage.model, models.spark, 'triage sends the spark model name');
+  assert.equal(byStage.research.model, models.spark, 'research sends the spark model name');
+  assert.ok(byStage.research.counts, 'research progress carries counts');
+  assert.equal(typeof byStage.research.counts.fetched, 'number', 'research counts hold fetched');
+  assert.equal(typeof byStage.research.counts.sourcesFound, 'number', 'research counts hold sourcesFound');
+  assert.equal(byStage.research.counts.fetched, byStage.research.fetched, 'counts match the research stats');
+  assert.equal(byStage.judge.judgedBy, 'Muse Wonder', 'judge keeps judgedBy');
+  assert.equal(byStage.judge.model, models.wonder, 'judge adds the deciding model');
+  assert.equal(byStage.gates.model, models.wonder, 'gates sends the deciding model');
+  assert.equal(byStage.challenge.model, models.spark, 'challenge sends the spark model name');
+  assert.equal(byStage.assemble.model, models.wonder, 'assemble sends the deciding model');
+});
+
 test('a material challenge revision gets its own stability check', async () => {
   const judge = async ({ evidence, model }) => {
     if (model === 'muse-wonder-1.0') return { verdict: 'Contradicted', citedIds: evidence.map((e) => e.id), stances: Object.fromEntries(evidence.map((e) => [e.id, 'contradicts'])), explanation: 'Revised.' };

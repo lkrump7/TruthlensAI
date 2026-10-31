@@ -140,6 +140,11 @@ test('claim check reads the stream and falls back plainly when it fails', () => 
   assert.ok(page.includes('Live progress did not load'), 'fallback message present');
 });
 
+test('live stage rows show the model carried by the progress event', () => {
+  assert.match(page, /s\.detail\.model/, 'live stage row renders detail.model for any stage that has one');
+  assert.match(page, /detail\.counts/, 'live research row reads counts from the progress event');
+});
+
 test('challenge stage is labelled as a check, and single-run stability is worded honestly', () => {
   assert.ok(page.includes('Skeptic check'), 'challenge stage label names a check');
   assert.ok(page.includes('No repeat run, so no agreement was measured'), 'single-run wording present');

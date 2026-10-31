@@ -176,7 +176,7 @@ The screen and the downloaded report have to show the same record.
 | ID | Severity | Status | Finding |
 |---|---|---|---|
 | TL-011 | low | closed | Specs disagree on demo-mode stream stages |
-| TL-012 | low | planned | Progress events carry model and counts for some stages only |
+| TL-012 | low | closed | Progress events carry model and counts for some stages only |
 | TL-013 | medium | planned | Export omits run date and the model list |
 | TL-014 | low | planned | Demo arc is pinned in demo mode only |
 
@@ -350,3 +350,7 @@ Closed in `docs: settle demo stream stage wording (TL-011)`.
 Pinned by `tests/stream.test.mjs`. The pin passed on its first run,
 before any wording change, so it pins existing behaviour rather than
 a new feature.
+
+TL-012. Progress events are uneven.
+Closed in `fix: carry model and counts on progress events (TL-012)`.
+Pinned by `tests/graph.test.mjs` and `tests/ui.test.mjs`.
