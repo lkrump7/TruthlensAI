@@ -18,9 +18,15 @@ const judge = async ({ evidence }) => ({ verdict: 'Contradicted', citedIds: evid
 test('investigation graph runs triage, research, judge, gates, challenge, assemble in order', async () => {
   const r = await runInvestigationGraph('Humans only use 10% of their brains.', { search, fetchText, judge, challenge: null, cache: false });
   assert.equal(r.verdict, 'Contradicted');
-  assert.deepEqual(r.trajectory, ['triage', 'research', 'judge', 'gates', 'challenge', 'assemble']);
+  assert.deepEqual(r.trajectory, ['triage', 'researchNode', 'judge', 'gates', 'challengeNode', 'assemble']);
   assert.ok(r.uncertainty);
   assert.equal(r.mode, 'live');
+});
+
+test('trajectory entries match the registered graph node names', async () => {
+  const r = await runInvestigationGraph('Humans only use 10% of their brains.', { search, fetchText, judge, challenge: null, cache: false, _returnGraph: true });
+  const nodeNames = Object.keys(r.graph.nodes).filter((n) => n !== '__start__');
+  assert.deepEqual(r.trajectory, nodeNames);
 });
 
 test('graph short-circuits opinions at triage without researching', async () => {
@@ -35,7 +41,7 @@ test('graph abstains at the research node when nothing fetchable touches the cla
   const emptySearch = async () => ({ queries: [], sources: [], citations: [] });
   const r = await runInvestigationGraph('Humans only use 10% of their brains.', { search: emptySearch, fetchText, judge, challenge: null, cache: false });
   assert.equal(r.verdict, 'Unverifiable');
-  assert.deepEqual(r.trajectory, ['triage', 'research']);
+  assert.deepEqual(r.trajectory, ['triage', 'researchNode']);
 });
 
 test('auto-generated threads do not leave checkpoints behind', async () => {
@@ -69,7 +75,8 @@ test('graph downgrades a decisive verdict when repeated judging flips', async ()
 test('graph reports progress once per finished node in trajectory order', async () => {
   const seen = [];
   const r = await runInvestigationGraph('Humans only use 10% of their brains.', { search, fetchText, judge, challenge: null, cache: false, onProgress: (stage, detail) => seen.push({ stage, detail }) });
-  assert.deepEqual(seen.map((s) => s.stage), r.trajectory);
+  assert.equal(seen.length, r.trajectory.length);
+  assert.deepEqual(seen.map((s) => s.stage), ['triage', 'research', 'judge', 'gates', 'challenge', 'assemble']);
   const research = seen.find((s) => s.stage === 'research');
   assert.ok(research.detail && typeof research.detail.fetched === 'number', 'research progress carries fetched count');
 });

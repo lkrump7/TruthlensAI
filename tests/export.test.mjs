@@ -13,7 +13,7 @@ const RECORD = {
   contradicting: [{ id: 'e1', title: 'Brain scans', source: 'a.example', date: '2020-01-01', url: 'https://a.example/brain', passage: 'Activity throughout the brain.' }],
   limitations: ['Verdict rests only on the fetched passages cited here.'],
   stability: { runs: 3, verdicts: ['Contradicted', 'Contradicted', 'Contradicted'], agreed: true, majority: 'Contradicted' },
-  trajectory: ['triage', 'research', 'judge', 'gates', 'challenge', 'assemble'],
+  trajectory: ['triage', 'researchNode', 'judge', 'gates', 'challengeNode', 'assemble'],
 };
 
 test('report names the claim, verdict, passage and its URL, and the limits', () => {

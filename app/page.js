@@ -89,14 +89,16 @@ function MicButton({ onText, label = 'Dictate' }) {
 const STAGE_LABELS = {
   triage: 'Checked what kind of claim this is',
   research: 'Searched and fetched sources',
+  researchNode: 'Searched and fetched sources',
   judge: 'Judged the fetched passages',
   gates: 'Applied the evidence gates',
   challenge: 'Skeptic check on the verdict',
+  challengeNode: 'Skeptic check on the verdict',
   assemble: 'Put the verdict together',
 };
 function stageSuffix(stage, r) {
   if (stage === 'judge' && r?.judgedBy) return ` (${r.judgedBy})`;
-  if (stage === 'research' && r?.research) return ` (${r.research.fetched} fetched)`;
+  if ((stage === 'research' || stage === 'researchNode') && r?.research) return ` (${r.research.fetched} fetched)`;
   return '';
 }
 function InvestigationSteps({ stages, r }) {

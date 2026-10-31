@@ -221,7 +221,7 @@ No wrong answers here. These cost money or slow down the next change.
 | TL-015 | low | closed | `BUDGET.maxJudgeCalls` is dead config |
 | TL-016 | low | closed | Duplicated idempotency tail and duplicated stability loop |
 | TL-017 | low | closed | Verdict strings are listed in four-plus places |
-| TL-018 | low | planned | Trajectory labels do not match graph node names |
+| TL-018 | low | closed | Trajectory labels do not match graph node names |
 
 TL-015. `BUDGET.maxJudgeCalls` is dead config.
 `BUDGET.maxJudgeCalls` is 2 in `lib/fetch.mjs:3` and nothing reads it,
@@ -383,3 +383,12 @@ Pinned by `tests/verdict.test.mjs`. No behaviour change:
 `DECISIVE_VERDICTS` in `lib/verdict.mjs` now holds the one
 decisive set, and `lib/report.mjs` reuses the existing
 `ESCALATION_VERDICTS` from `lib/config.mjs`.
+
+TL-018. Trajectory labels do not match node names.
+Closed in `fix: match trajectory labels to graph nodes (TL-018)`.
+Pinned by `tests/graph.test.mjs`. The trajectory side moved:
+`research` and `challenge` in the trajectory are now
+`researchNode` and `challengeNode`, matching the registered
+LangGraph nodes. The node side could not move, because
+`research` and `challenge` are state channel names and
+LangGraph rejects a node name that matches a channel.
