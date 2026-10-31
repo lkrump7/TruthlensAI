@@ -1,11 +1,25 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { assertPublicUrl } from '../lib/fetch.mjs';
+import { assertPublicUrl, isPrivateHost } from '../lib/fetch.mjs';
 
 test('assertPublicUrl blocks IPv4-mapped IPv6 hosts with a private tail', () => {
   for (const u of ['http://[::ffff:127.0.0.1]/', 'http://[::ffff:10.0.0.5]/']) {
     assert.throws(() => assertPublicUrl(u), /blocked|private/i, u);
   }
+});
+
+test('isPrivateHost fails closed on an unparseable mapped tail (TL-021)', () => {
+  // Reached through DNS answers in assertHostResolvesPublic, which feeds
+  // raw address strings to isPrivateHost; a malformed mapped tail must
+  // count as private, never public.
+  assert.equal(typeof isPrivateHost, 'function');
+  for (const h of ['::ffff:not-an-ip', '::ffff:zzz:1', '::ffff:']) {
+    assert.equal(isPrivateHost(h), true, h);
+  }
+  assert.equal(isPrivateHost('::ffff:127.0.0.1'), true);
+  assert.equal(isPrivateHost('::ffff:7f00:1'), true);
+  assert.equal(isPrivateHost('::ffff:8.8.8.8'), false);
+  assert.equal(isPrivateHost('::ffff:808:808'), false);
 });
 
 test('assertPublicUrl blocks the unspecified IPv6 host', () => {
