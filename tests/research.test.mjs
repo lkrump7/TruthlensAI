@@ -220,10 +220,9 @@ test('researchClaim records fetch failures with reasons instead of dropping them
   assert.ok(r.failures.some((f) => /a\.example/.test(f.url) && /404/.test(f.reason)));
 });
 
-test('BUDGET caps sources, evidence and judge calls per claim', () => {
+test('BUDGET caps sources and evidence per claim', () => {
   assert.ok(BUDGET.maxSources >= 1 && BUDGET.maxSources <= 12);
   assert.ok(BUDGET.maxEvidence >= 1 && BUDGET.maxEvidence <= BUDGET.maxSources);
-  assert.ok(BUDGET.maxJudgeCalls >= 1 && BUDGET.maxJudgeCalls <= 3);
 });
 
 test('claims sharing a topic cache key reuse one research pool', async () => {

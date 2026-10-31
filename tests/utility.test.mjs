@@ -2,6 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { utilityScore, rankJudgeEvidence } from '../lib/evidence.mjs';
 import { parseSearchResponse, verifyResearchedClaim, researchClaim } from '../lib/research.mjs';
+import { BUDGET } from '../lib/fetch.mjs';
+
+test('BUDGET has no dead judge-call cap (TL-015)', () => {
+  assert.equal(BUDGET.maxJudgeCalls, undefined);
+});
 
 test('utilityScore rewards claim overlap and source tier', () => {
   const claim = 'Humans only use 10% of their brains';
