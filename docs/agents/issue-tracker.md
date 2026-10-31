@@ -175,7 +175,7 @@ The screen and the downloaded report have to show the same record.
 
 | ID | Severity | Status | Finding |
 |---|---|---|---|
-| TL-011 | low | planned | Specs disagree on demo-mode stream stages |
+| TL-011 | low | closed | Specs disagree on demo-mode stream stages |
 | TL-012 | low | planned | Progress events carry model and counts for some stages only |
 | TL-013 | medium | planned | Export omits run date and the model list |
 | TL-014 | low | planned | Demo arc is pinned in demo mode only |
@@ -344,3 +344,9 @@ Pinned by `tests/video.test.mjs` and `tests/media-documents.test.mjs`.
 Hand-check with ffmpeg 8.0.1: a 3s silent `testsrc` video returned
 frame pages with `durationSec: 3`; a garbage file failed at the
 ffprobe duration step instead of becoming a frames-only document.
+
+TL-011. Specs disagree on demo-mode stream stages.
+Closed in `docs: settle demo stream stage wording (TL-011)`.
+Pinned by `tests/stream.test.mjs`. The pin passed on its first run,
+before any wording change, so it pins existing behaviour rather than
+a new feature.

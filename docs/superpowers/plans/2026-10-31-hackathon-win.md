@@ -73,7 +73,7 @@ git commit -m "feat: stability check downgrades unstable decisive verdicts"
 
 **Interfaces:**
 - Consumes: `runInvestigationGraph(text, deps)` in `lib/graph.mjs`.
-- Produces: `deps.onProgress(stage, detail)` called once per finished node, in trajectory order. The SSE route emits `progress` events with stage, model label, and research counts, then one `verdict` event with the full record, then closes. Demo mode emits the same stage names with the demo record and mode demo.
+- Produces: `deps.onProgress(stage, detail)` called once per finished node, in trajectory order. The SSE route emits `progress` events with stage, model label, and research counts, then one `verdict` event with the full record, then closes. Demo mode emits no progress events, because the demo engine runs no stages. It emits one verdict event with the demo record and mode demo.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -86,7 +86,7 @@ Expected: fail because `onProgress` is never called and the page has no stream c
 
 - [ ] **Step 3: Implement the minimum**
 
-Call `deps.onProgress` at the end of each graph node with the stage name and, for research, the stats object. Add the SSE route mirroring `app/api/documents/[id]/events/route.js`. In live mode it runs the graph with an `onProgress` that enqueues progress events. In demo mode it runs the demo engine and emits the six stage names before the verdict event. Errors emit one `error` event and close.
+Call `deps.onProgress` at the end of each graph node with the stage name and, for research, the stats object. Add the SSE route mirroring `app/api/documents/[id]/events/route.js`. In live mode it runs the graph with an `onProgress` that enqueues progress events. In demo mode it runs the demo engine and emits no stage names, only the verdict event, because a stage that has not run is never shown as run. Errors emit one `error` event and close.
 
 - [ ] **Step 4: Run the focused tests**
 
