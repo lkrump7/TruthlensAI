@@ -1,4 +1,4 @@
-import { getDocument } from '../../../../../lib/documents.mjs';
+import { getDocument, publicDocument } from '../../../../../lib/documents.mjs';
 import { docEvents } from '../../../../../lib/events.mjs';
 import { canView, requestUser } from '../../../../../lib/auth.mjs';
 
@@ -13,10 +13,12 @@ export async function GET(req, { params }) {
   const stream = new ReadableStream({
     async start(controller) {
       const send = async () => {
-        const fresh = await getDocument(params.id);
-        if (!fresh || closed) return;
-        const { chunks, ...rest } = fresh;
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ document: { ...rest, chunkCount: chunks.length } })}\n\n`));
+        if (closed) return;
+        try {
+          const fresh = await getDocument(params.id);
+          if (!fresh || closed) return;
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ document: publicDocument(fresh) })}\n\n`));
+        } catch (e) { console.error(`[truthlens] events stream failed for ${params.id}:`, e); }
       };
       await send();
       if (closed) return;

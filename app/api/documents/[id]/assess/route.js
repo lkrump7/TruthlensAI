@@ -1,4 +1,5 @@
-import { assessDocumentClaim } from '../../../../../lib/store.mjs';
+import { assessDocumentClaim, getDocument, publicDocument } from '../../../../../lib/store.mjs';
+import { canView, requestUser } from '../../../../../lib/auth.mjs';
 import { CONFIG } from '../../../../../lib/config.mjs';
 
 export async function POST(req, { params }) {
@@ -6,14 +7,16 @@ export async function POST(req, { params }) {
   const text = String(body.text || '').trim();
   if (!text) return Response.json({ error: 'Enter a claim or theory to investigate.' }, { status: 400 });
   if (text.length > CONFIG.MAX_CLAIM_CHARS) return Response.json({ error: `Submission is longer than ${CONFIG.MAX_CLAIM_CHARS} characters.` }, { status: 413 });
+  const doc = await getDocument(params.id);
+  if (!doc || !canView(doc, requestUser(req)?.username)) return Response.json({ error: 'Document not found.' }, { status: 404 });
   let out;
   try {
     out = await assessDocumentClaim(params.id, text, { idempotencyKey: req.headers.get('idempotency-key') || undefined });
   } catch (e) {
     if (e.code === 'idempotency-conflict' || e.code === 'idempotency-in-flight') return Response.json({ error: e.message }, { status: 409 });
-    throw e;
+    console.error(e);
+    return Response.json({ error: 'Something went wrong. Try again.' }, { status: 500 });
   }
   if (!out) return Response.json({ error: 'Document not found.' }, { status: 404 });
-  const { chunks, ...pub } = out.doc;
-  return Response.json({ claim: out.claim, document: { ...pub, chunkCount: chunks.length } });
+  return Response.json({ claim: out.claim, document: publicDocument(out.doc) });
 }

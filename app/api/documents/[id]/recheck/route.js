@@ -1,8 +1,11 @@
-import { recheckDocument } from '../../../../../lib/store.mjs';
+import { recheckDocument, getDocument, publicDocument } from '../../../../../lib/store.mjs';
+import { canView, requestUser } from '../../../../../lib/auth.mjs';
 
 export async function POST(req, { params }) {
-  const doc = await recheckDocument(params.id);
+  const existing = await getDocument(params.id);
+  if (!existing || !canView(existing, requestUser(req)?.username)) return Response.json({ error: 'Document not found.' }, { status: 404 });
+  let doc;
+  try { doc = await recheckDocument(params.id); } catch (e) { console.error(e); return Response.json({ error: 'Something went wrong. Try again.' }, { status: 500 }); }
   if (!doc) return Response.json({ error: 'Document not found.' }, { status: 404 });
-  const { chunks, ...pub } = doc;
-  return Response.json({ document: { ...pub, chunkCount: chunks.length } });
+  return Response.json({ document: publicDocument(doc) });
 }

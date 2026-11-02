@@ -3,7 +3,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: truthlens
-      POSTGRES_PASSWORD: truthlens
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
       POSTGRES_DB: truthlens
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -22,7 +22,7 @@ services:
     environment:
       DATABASE_URL: postgres://truthlens:truthlens@db:5432/truthlens
       FAISS_SERVICE_URL: http://sidecar:8100
-      AUTH_SECRET: ${AUTH_SECRET:-change-me-in-production}
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET to a private random value}
       META_MODEL_API_URL: ${META_MODEL_API_URL:-https://api.meta.ai/v1/chat/completions}
       META_MODEL_API_KEY: ${META_MODEL_API_KEY:-}
       META_SPARK_MODEL: ${META_SPARK_MODEL:-muse-spark-1.3}

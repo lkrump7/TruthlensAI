@@ -1,7 +1,9 @@
 import { transcribeAudio, MAX_AUDIO_BYTES, voiceModel } from '../../../lib/voice.mjs';
 import { liveStatus } from '../../../lib/meta.mjs';
+import { authEnabled, requestUser } from '../../../lib/auth.mjs';
 
 export async function POST(req) {
+  if (authEnabled() && !requestUser(req)) return Response.json({ error: 'Sign in first.' }, { status: 401 });
   const form = await req.formData().catch(() => null);
   const file = form?.get('audio');
   if (!file || typeof file.arrayBuffer !== 'function') {

@@ -6,6 +6,7 @@ import { canView, requestUser } from '../../../lib/auth.mjs';
 // download. The client names a document and a claim. The report renders
 // the claim held on that document, never a record the client posts.
 export async function POST(req) {
+  try {
   const { docId, claimId } = await req.json().catch(() => ({}));
   if (!docId || !claimId) return Response.json({ error: 'No investigation to export.' }, { status: 400 });
   const doc = await getDocument(docId);
@@ -20,4 +21,5 @@ export async function POST(req) {
       'content-disposition': 'attachment; filename="truthlens-investigation.md"',
     },
   });
+  } catch (e) { console.error(e); return Response.json({ error: 'Something went wrong. Try again.' }, { status: 500 }); }
 }
