@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 process.env.TRUTHLENS_USERS_FILE = join(mkdtempSync(join(tmpdir(), 'tl-users-')), 'users.json');
-const { registerUser, authenticateUser, createSessionToken, verifySessionToken, hashPassword, verifyPassword, authEnabled, requestUser, authSecret, sessionCookie } = await import('../lib/auth.mjs');
+const { registerUser, authenticateUser, createSessionToken, verifySessionToken, hashPassword, verifyPassword, authEnabled, requestUser, authSecret, sessionCookie, currentUser } = await import('../lib/auth.mjs');
 
 test('accounts are off by default and only on when AUTH_ENABLED opts in', () => {
   assert.equal(authEnabled({}), false);
@@ -45,6 +45,11 @@ test('requestUser is null with accounts off and reads the session with accounts 
   } finally {
     if (saved === undefined) delete process.env.AUTH_ENABLED; else process.env.AUTH_ENABLED = saved;
   }
+});
+
+test('a malformed session cookie reads as signed out, not as a server error', () => {
+  assert.equal(currentUser(new Request('http://t/x', { headers: { cookie: 'tl_session=%zz' } })), null);
+  assert.equal(currentUser(new Request('http://t/x', { headers: { cookie: 'tl_session=abc%' } })), null);
 });
 
 test('session tokens verify, and tampered or expired tokens do not', () => {

@@ -25,6 +25,16 @@ test('semantic chunking falls back to fixed chunking without embeddings', async 
   assert.deepEqual(noFn, chunkDocument(pages));
 });
 
+test('semantic chunking falls back to fixed chunking when embeddings throw', async () => {
+  const semantic = await chunkDocumentSemantic(pages, { embedTexts: async () => { throw new Error('sidecar down'); } });
+  assert.deepEqual(semantic, chunkDocument(pages));
+});
+
+test('semantic chunking falls back to fixed chunking on misaligned vectors', async () => {
+  const semantic = await chunkDocumentSemantic(pages, { embedTexts: async () => [[1, 0]] });
+  assert.deepEqual(semantic, chunkDocument(pages));
+});
+
 test('semantic chunking still respects the size cap within one topic', async () => {
   const long = [{ page: 2, text: Array.from({ length: 12 }, (_, i) => `Reservoir report part ${i}: flooding levels and reservoir operations in the valley are described in detail here.`).join(' ') }];
   const semantic = await chunkDocumentSemantic(long, { embedTexts, size: 300 });

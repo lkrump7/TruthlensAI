@@ -37,6 +37,14 @@ test('fetchWebsitePages rejects private and non-http URLs before fetching', asyn
   assert.equal(fetched, false);
 });
 
+test('fetchWebsitePages accepts a scheme-less address as https', async () => {
+  let saw = null;
+  const out = await fetchWebsitePages('www.wikipedia.com/drugs', { fetchText: async (u) => { saw = u; return ARTICLE; } });
+  assert.equal(out.url, 'https://www.wikipedia.com/drugs');
+  assert.equal(saw, 'https://www.wikipedia.com/drugs');
+  assert.match(out.pages[0].text, /reservoir reduced flooding deaths/i);
+});
+
 test('fetchWebsitePages rejects pages with too little readable text', async () => {
   assert.ok(MIN_WEBSITE_CHARS >= 100);
   await assert.rejects(

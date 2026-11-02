@@ -12,6 +12,8 @@ test('authSecret uses AUTH_SECRET and compose ships no predictable default', asy
     assert.equal(authSecret(), '<MASKED_SECRET_001>');
     const compose = readFileSync(new URL('../docker-compose.yml', import.meta.url), 'utf8');
     assert.doesNotMatch(compose, /change-me/);
+    assert.match(compose, /DATABASE_URL:.*\$\{POSTGRES_PASSWORD/, 'app database password comes from the same POSTGRES_PASSWORD the database requires');
+    assert.doesNotMatch(compose, /postgres:\/\/truthlens:truthlens@/, 'no hardcoded database password in DATABASE_URL');
   } finally {
     if (savedSecret === undefined) delete process.env.AUTH_SECRET; else process.env.AUTH_SECRET = savedSecret;
   }

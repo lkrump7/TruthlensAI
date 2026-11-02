@@ -24,9 +24,9 @@ async function remember(req, result) {
 export async function POST(req) {
   if (authEnabled() && !requestUser(req)) return Response.json({ error: 'Sign in first.' }, { status: 401 });
   const { claim } = await req.json().catch(() => ({}));
-  if (!claim || !String(claim).trim()) return Response.json({ error: 'Enter a claim first.' }, { status: 400 });
-  if (String(claim).length > CONFIG.MAX_CLAIM_CHARS) return Response.json({ error: `Claim is longer than ${CONFIG.MAX_CLAIM_CHARS} characters.` }, { status: 413 });
-  const text = String(claim).trim();
+  if (typeof claim !== 'string' || !claim.trim()) return Response.json({ error: 'Enter a claim first.' }, { status: 400 });
+  const text = claim.trim();
+  if (text.length > CONFIG.MAX_CLAIM_CHARS) return Response.json({ error: `Claim is longer than ${CONFIG.MAX_CLAIM_CHARS} characters.` }, { status: 413 });
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
@@ -52,5 +52,5 @@ export async function POST(req) {
       }
     },
   });
-  return new Response(stream, { headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' } });
+  return new Response(stream, { headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive', 'x-accel-buffering': 'no' } });
 }

@@ -1,11 +1,14 @@
-import { createDocument } from '../../../../lib/documents.mjs';
+import { createDocument, publicDocument } from '../../../../lib/documents.mjs';
 import { captionImage, BlankCaptionError, mimeForImageFile, IMAGE_MIME_BY_EXT, MAX_IMAGE_BYTES } from '../../../../lib/caption.mjs';
 import { liveStatus, getModels } from '../../../../lib/meta.mjs';
-import { requestUser } from '../../../../lib/auth.mjs';
+import { authEnabled, requestUser } from '../../../../lib/auth.mjs';
+import { storeOriginal, ORIGINAL_NOT_KEPT_WARNING } from '../../../../lib/media-store.mjs';
+import { CONFIG } from '../../../../lib/config.mjs';
 
 const SUPPORTED_IMAGE_MIMES = new Set(Object.values(IMAGE_MIME_BY_EXT));
 
 export async function POST(req) {
+  if (authEnabled() && !requestUser(req)) return Response.json({ error: 'Sign in first.' }, { status: 401 });
   const form = await req.formData().catch(() => null);
   const file = form?.get('file');
   if (!file || typeof file.arrayBuffer !== 'function') return Response.json({ error: 'Choose an image file first.' }, { status: 400 });
@@ -17,21 +20,28 @@ export async function POST(req) {
   if (!liveStatus().configured) {
     return Response.json({ error: 'Image captioning is unavailable here. It needs Muse Spark vision on Meta Model API, and no Meta key is set on this deployment.' }, { status: 503 });
   }
+  const buffer = Buffer.from(await file.arrayBuffer());
   let caption;
   try {
-    caption = await captionImage(Buffer.from(await file.arrayBuffer()), { mime });
+    caption = await captionImage(buffer, { mime });
   } catch (e) {
     if (e instanceof BlankCaptionError) return Response.json({ error: e.message }, { status: 422 });
     return Response.json({ error: `Captioning failed. ${e.message}` }, { status: 502 });
   }
+  if (String(caption || '').length > CONFIG.MAX_DOCUMENT_CHARS) return Response.json({ error: `Document is longer than ${CONFIG.MAX_DOCUMENT_CHARS} characters.` }, { status: 413 });
   const models = getModels();
+  let stored = null;
+  try {
+    stored = await storeOriginal(buffer, mime, file.name);
+  } catch (e) {
+    console.error('[documents/image] original file not stored:', e);
+  }
   const doc = await createDocument({
     title: String(form.get('title') || file.name || 'Uploaded image'),
     pages: [{ page: 1, text: caption }],
     kind: 'image',
-    media: { caption, model: models.spark },
+    media: { caption, model: models.spark, ...(stored ? { file: stored } : {}) },
     owner: requestUser(req)?.username || 'demo',
   });
-  const { chunks, ...pub } = doc;
-  return Response.json({ document: { ...pub, chunkCount: chunks.length }, caption, model: models.spark, mode: 'live-ready', models });
+  return Response.json({ document: publicDocument(doc), ...(stored ? {} : { warning: ORIGINAL_NOT_KEPT_WARNING }), caption, model: models.spark, mode: 'live-ready', models });
 }

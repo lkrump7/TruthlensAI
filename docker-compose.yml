@@ -20,7 +20,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: postgres://truthlens:truthlens@db:5432/truthlens
+      DATABASE_URL: postgres://truthlens:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/truthlens
       FAISS_SERVICE_URL: http://sidecar:8100
       AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET to a private random value}
       META_MODEL_API_URL: ${META_MODEL_API_URL:-https://api.meta.ai/v1/chat/completions}

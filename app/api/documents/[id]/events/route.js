@@ -2,6 +2,8 @@ import { getDocument, publicDocument } from '../../../../../lib/documents.mjs';
 import { docEvents } from '../../../../../lib/events.mjs';
 import { canView, requestUser } from '../../../../../lib/auth.mjs';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req, { params }) {
   const doc = await getDocument(params.id);
   if (!doc || !canView(doc, requestUser(req)?.username)) return Response.json({ error: 'Document not found.' }, { status: 404 });
@@ -30,5 +32,5 @@ export async function GET(req, { params }) {
     },
     cancel() { cleanup(); },
   });
-  return new Response(stream, { headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' } });
+  return new Response(stream, { headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive', 'x-accel-buffering': 'no' } });
 }

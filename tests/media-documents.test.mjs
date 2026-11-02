@@ -113,6 +113,23 @@ test('video route stores durationSec for a silent video', async (t) => {
   assert.equal(stored.media.durationSec, body.document.media.durationSec);
 });
 
+test('video route keeps no original when the type comes only from the client', async (t) => {
+  const { execFile, execFileSync } = await import('node:child_process');
+  const { promisify } = await import('node:util');
+  const { readFile } = await import('node:fs/promises');
+  try { execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' }); } catch { t.skip('ffmpeg not available'); return; }
+  const run = promisify(execFile);
+  const silentPath = join(dir, 'silent-noext.mp4');
+  await run('ffmpeg', ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc=duration=3:size=320x240:rate=10', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', silentPath]);
+  const bytes = await readFile(silentPath);
+  const captionFetch = async () => ({ ok: true, status: 200, json: async () => ({ choices: [{ message: { content: 'A silent chart.' } }] }) });
+  const res = await withVisionFetch(captionFetch, () => videoPost(uploadReq('http://t/api/documents/video', 'silentclip', bytes, 'video/mp4')));
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.document.media.file, undefined, 'a client-supplied type alone never names the stored format');
+  assert.match(body.warning || '', /was not kept/i, 'the response says the original is missing');
+});
+
 test('video route refuses a missing file, a wrong type, and unconfigured Meta', async () => {
   assert.equal((await videoPost(new Request('http://t/api/documents/video', { method: 'POST' }))).status, 400);
   assert.equal((await videoPost(uploadReq('http://t/api/documents/video', 'sign.png', Buffer.from('hello')))).status, 400);

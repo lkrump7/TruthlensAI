@@ -22,7 +22,7 @@ export async function POST(req) {
     return Response.json({ error: 'Accounts are turned off on this deployment. You can use everything without signing in.' }, { status: 403 });
   }
   const limitKey = `${action || ''}:${String(username || '').toLowerCase()}`;
-  if (action !== 'logout' && rateLimited(limitKey)) return Response.json({ error: 'Too many attempts. Wait a few minutes and try again.' }, { status: 429 });
+  if (action !== 'logout' && rateLimited(limitKey)) return Response.json({ error: 'Too many attempts. Wait a few minutes and try again.' }, { status: 429, headers: { 'Retry-After': '900' } });
   try {
     if (action === 'logout') {
       return new Response(JSON.stringify({ user: null }), { headers: { 'content-type': 'application/json', 'set-cookie': 'tl_session=; HttpOnly; Path=/; Max-Age=0' } });

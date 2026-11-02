@@ -15,12 +15,23 @@ async function remember(req, result) {
   }
 }
 
+const verifyAttempts = new Map();
+export function verifyRateLimited(key) {
+  const now = Date.now();
+  const hits = (verifyAttempts.get(key) || []).filter((t) => now - t < 60 * 1000);
+  hits.push(now);
+  verifyAttempts.set(key, hits);
+  return hits.length > 30;
+}
+
 export async function POST(req) {
   if (authEnabled() && !requestUser(req)) return Response.json({ error: 'Sign in first.' }, { status: 401 });
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'local';
+  if (verifyRateLimited(`verify:${ip}`)) return Response.json({ error: 'Too many checks. Wait a minute and try again.' }, { status: 429, headers: { 'Retry-After': '60' } });
   const { claim } = await req.json().catch(() => ({}));
-  if (!claim || !String(claim).trim()) return Response.json({ error: 'Enter a claim first.' }, { status: 400 });
-  if (String(claim).length > CONFIG.MAX_CLAIM_CHARS) return Response.json({ error: `Claim is longer than ${CONFIG.MAX_CLAIM_CHARS} characters.` }, { status: 413 });
-  const text = String(claim).trim();
+  if (typeof claim !== 'string' || !claim.trim()) return Response.json({ error: 'Enter a claim first.' }, { status: 400 });
+  const text = claim.trim();
+  if (text.length > CONFIG.MAX_CLAIM_CHARS) return Response.json({ error: `Claim is longer than ${CONFIG.MAX_CLAIM_CHARS} characters.` }, { status: 413 });
   const status = liveStatus();
   if (!status.configured) {
     const base = await verifyClaim({ text }, DEMO_EVIDENCE);

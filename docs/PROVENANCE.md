@@ -28,7 +28,7 @@ Run on 2026-10-31 in the build session:
 
 | Check | Command | Observed result |
 |---|---|---|
-| Unit + integration + regression + non-functional tests | `npm test` | 147/147 pass (`node --test tests/*.test.mjs`) |
+| Unit + integration + regression + non-functional tests | `npm test` | 582/582 pass (`node --test tests/*.test.mjs`) |
 | Coverage | `npm run coverage` | 99.6% lines, 85.8% branches, 97.0% functions (all files) |
 | Lint | `npm run lint` | clean (ESLint over `lib`, `tests`, `eval`, `app`) |
 | Types | `npm run typecheck` | clean (`tsc -p tsconfig.lib.json`) |
@@ -48,7 +48,7 @@ concurrency).
 
 ```bash
 npm install
-npm test          # 147 tests, no network or keys needed
+npm test          # 582 tests, no network or keys needed
 npm run lint
 npm run typecheck
 npm run build

@@ -39,3 +39,10 @@ test('assertPublicUrl still blocks the existing private hosts', () => {
     assert.throws(() => assertPublicUrl(u), /blocked|private/i, u);
   }
 });
+
+test('assertPublicUrl blocks shared, benchmarking and special-use IPv4 ranges', () => {
+  for (const u of ['http://100.64.0.1/a', 'http://100.127.255.1/a', 'http://198.18.0.5/a', 'http://198.19.0.5/a', 'http://192.0.0.8/a']) {
+    assert.throws(() => assertPublicUrl(u), /blocked|private/i, u);
+  }
+  assert.equal(assertPublicUrl('http://100.128.0.1/a'), 'http://100.128.0.1/a');
+});

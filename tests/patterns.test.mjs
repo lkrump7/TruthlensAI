@@ -23,6 +23,10 @@ test('topicKeyFor lives in claims and builds a stable topic key', () => {
   assert.ok(!a.includes('increases'));
 });
 
+test('topicKeyFor separates claims that differ only in word order', () => {
+  assert.notEqual(topicKeyFor('Cats kill dogs'), topicKeyFor('Dogs kill cats'));
+});
+
 test('topicKeyFor separates claims that differ only in a number', () => {
   const a = topicKeyFor('The vaccine reduced hospitalisations by 80 percent among elderly residents');
   const b = topicKeyFor('The vaccine reduced hospitalisations by 20 percent among elderly residents');

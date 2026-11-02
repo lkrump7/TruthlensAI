@@ -222,6 +222,16 @@ test('challenge kinds do different work, not the same rerun in three labels', as
   assert.match(prove.followup.falsifier, /contradict/i);
   assert.equal(typeof prove.followup.falsifierFound, 'boolean');
   assert.equal(prove.followup.falsifierFound, prove.followup.contradicting.length > 0);
+
+  const support = await challengeDocumentClaim(doc.id, claim.id, { kind: 'stronger-support' });
+  assert.ok(Array.isArray(support.followup.supporting));
+  assert.equal(typeof support.followup.supportingDomains, 'number');
+  assert.ok(Array.isArray(support.followup.newSupporting), 'stronger-support names the supporting evidence that is new');
+
+  const confirm = await challengeDocumentClaim(doc.id, claim.id, { kind: 'prove-right' });
+  assert.match(confirm.followup.confirmer, /supporting/i);
+  assert.equal(typeof confirm.followup.confirmerFound, 'boolean');
+  assert.equal(confirm.followup.confirmerFound, confirm.followup.supporting.length > 0);
 });
 
 test('challenge route validates kind and 404s unknown claims', async () => {

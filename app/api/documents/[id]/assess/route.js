@@ -1,8 +1,9 @@
 import { assessDocumentClaim, getDocument, publicDocument } from '../../../../../lib/store.mjs';
-import { canView, requestUser } from '../../../../../lib/auth.mjs';
+import { authEnabled, canView, requestUser } from '../../../../../lib/auth.mjs';
 import { CONFIG } from '../../../../../lib/config.mjs';
 
 export async function POST(req, { params }) {
+  if (authEnabled() && !requestUser(req)) return Response.json({ error: 'Sign in first.' }, { status: 401 });
   const body = await req.json().catch(() => ({}));
   const text = String(body.text || '').trim();
   if (!text) return Response.json({ error: 'Enter a claim or theory to investigate.' }, { status: 400 });

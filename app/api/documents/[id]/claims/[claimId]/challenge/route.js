@@ -1,7 +1,8 @@
 import { challengeDocumentClaim, getDocument, CHALLENGE_KINDS } from '../../../../../../../lib/store.mjs';
-import { canView, requestUser } from '../../../../../../../lib/auth.mjs';
+import { authEnabled, canView, requestUser } from '../../../../../../../lib/auth.mjs';
 
 export async function POST(req, { params }) {
+  if (authEnabled() && !requestUser(req)) return Response.json({ error: 'Sign in first.' }, { status: 401 });
   const body = await req.json().catch(() => ({}));
   const kind = String(body.kind || '');
   if (!Object.hasOwn(CHALLENGE_KINDS, kind)) return Response.json({ error: 'Unknown challenge kind.' }, { status: 400 });

@@ -57,6 +57,24 @@ test('stability gate gives Partially supported for a split decisive verdict with
   assert.ok(out.limitations.some((l) => /judge runs disagreed/i.test(l)));
 });
 
+test('applyGates keeps disagreement visible when corroboration also downgrades', async () => {
+  const { applyGates } = await import('../lib/verdict.mjs');
+  const ctx = { verdict: 'Supported', supporting: [{ id: 'a', source: 'x.com' }], contradicting: [], cited: [{ id: 'a', source: 'x.com' }], limitations: [], stability: { runs: 3, verdicts: ['Supported', 'Contradicted', 'Supported'], agreed: false, majority: 'Supported' } };
+  const out = applyGates(ctx);
+  assert.equal(out.verdict, 'Partially supported');
+  assert.ok(out.limitations.some((l) => /single independent source/i.test(l)), JSON.stringify(out.limitations));
+  assert.ok(out.limitations.some((l) => /judge runs disagreed/i.test(l)), JSON.stringify(out.limitations));
+});
+
+test('applyGates keeps disagreement visible when citation downgrades to Unverifiable', async () => {
+  const { applyGates } = await import('../lib/verdict.mjs');
+  const ctx = { verdict: 'Supported', supporting: [], contradicting: [], unclassified: [], cited: [], limitations: [], stability: { runs: 3, verdicts: ['Supported', 'Contradicted', 'Supported'], agreed: false, majority: 'Supported' } };
+  const out = applyGates(ctx);
+  assert.equal(out.verdict, 'Unverifiable');
+  assert.ok(out.limitations.some((l) => /no evidence|no cited evidence|cited no evidence/i.test(l)), JSON.stringify(out.limitations));
+  assert.ok(out.limitations.some((l) => /judge runs disagreed/i.test(l)), JSON.stringify(out.limitations));
+});
+
 test('stability gate leaves an agreed decisive verdict alone', async () => {
   const { applyGates } = await import('../lib/verdict.mjs');
   const ctx = { verdict: 'Supported', supporting: [{ id: 'a', source: 'x.com' }, { id: 'b', source: 'y.edu' }], contradicting: [], cited: [{ id: 'a', source: 'x.com' }, { id: 'b', source: 'y.edu' }], limitations: [], stability: { runs: 3, verdicts: ['Supported', 'Supported', 'Supported'], agreed: true, majority: 'Supported' } };

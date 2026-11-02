@@ -189,7 +189,9 @@ the two uncertainty signals and exists only as this procedure's input.
 It is not displayed as confidence anywhere.
 
 Verification: Monte Carlo, 4,000 fitted thresholds per setting, fresh
-correct samples drawn from the same distribution. Empirical keep-rates:
+correct samples drawn from the same distribution (reproduced with the
+seeded generator in `tests/calibration.test.mjs`; the suite itself runs
+a 600-trial seeded floor check per setting). Empirical keep-rates:
 91.07% (n=30), 90.05% (n=50), 89.58% (n=100), 96.28% (n=50,
 alpha=0.05), 90.20% (n=200), against a 90% (95%) target. The n=100
 figure sits within one Monte Carlo standard error (about 0.5 points) of

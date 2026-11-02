@@ -143,6 +143,17 @@ test('getModels reflects env at call time', () => {
   assert.equal(getModels({}).spark, 'muse-spark-1.3');
 });
 
+test('MetaClient aborts a completion that never answers', async () => {
+  const fetchImpl = (url, opts) => new Promise((resolve, reject) => {
+    opts.signal.addEventListener('abort', () => reject(new Error('aborted by timeout')));
+  });
+  const client = new MetaClient({ apiUrl: 'https://example.invalid/chat', apiKey: 'k', fetchImpl, timeoutMs: 20 });
+  const keepAlive = setTimeout(() => {}, 500);
+  try {
+    await assert.rejects(() => client.completeJson({ system: 's', user: 'u' }), /aborted by timeout/);
+  } finally { clearTimeout(keepAlive); }
+});
+
 test('parseLiveVerdict rejects invented citations and unknown verdicts', () => {
   const ev = [{ id: 'ev1' }];
   assert.throws(() => parseLiveVerdict(JSON.stringify({ verdict: 'Supported', citedIds: ['nope'], explanation: 'x' }), ev));

@@ -77,3 +77,16 @@ test('research drops near-duplicate passages repeated across sources', async () 
   const scans = r.evidence.filter((e) => /Brain scans show activity/.test(e.passage));
   assert.equal(scans.length, 1, 'the same finding from two pages is one piece of evidence, not two');
 });
+
+test('a five-element compound decomposes into atomic investigations and rolls up', async () => {
+  const text = 'Water boils at sea level; Apollo landed in 1969; Honey never spoils; Glass flows slowly; Lightning strikes twice';
+  let judgeCalls = 0;
+  const out = await verifyResearchedClaim(text, {
+    search: async () => ({ queries: ['q'], sources: [{ title: 'S', url: 'https://roll.example/a' }], citations: [] }),
+    fetchText: async () => 'Water boils at sea level and Apollo landed with honey that never spoils while glass flows and lightning strikes.',
+    cache: false, challenge: null, nli: null, stabilityRuns: 1,
+    judge: async () => { judgeCalls++; return { verdict: 'Supported', citedIds: [], explanation: 'stub' }; },
+  });
+  assert.equal(judgeCalls, 5, 'each atomic element is investigated once');
+  assert.equal(out.subclaims.length, 5, 'the roll-up carries every element');
+});

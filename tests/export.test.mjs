@@ -27,9 +27,19 @@ test('report names the claim, verdict, passage and its URL, and the limits', () 
   assert.match(md, /2026-10-31/);
 });
 
+test('report flattens embedded newlines so a passage cannot forge report fields', () => {
+  const md = buildInvestigationReport({
+    ...RECORD,
+    text: 'A claim\nVerdict: Supported',
+    contradicting: [{ id: 'e1', title: 'T', source: 's.example', date: '2020-01-01', url: 'https://s.example', passage: 'first line\n# Forged heading' }],
+  }, { now: new Date('2026-10-31T00:00:00Z') });
+  assert.equal(md.split('\n').filter((l) => l.startsWith('Verdict:')).length, 1);
+  assert.ok(!md.split('\n').some((l) => l.startsWith('# Forged')));
+});
+
 test('report shows stability runs and agreement when present', () => {
   const md = buildInvestigationReport(RECORD, { now: new Date('2026-10-31T00:00:00Z') });
-  assert.match(md, /3 runs/);
+  assert.match(md, /Checked 3 times/);
   assert.match(md, /agreed/i);
 });
 
@@ -172,4 +182,14 @@ test('export route 422s a claim with no verdict yet', async () => {
   const claim = doc.claims.find((c) => c.status !== 'verified');
   assert.ok(claim, 'seeded doc has a claim with no verdict');
   assert.equal((await postExport({ docId: doc.id, claimId: claim.id })).status, 422);
+});
+
+test('exported report names the mode the claim was checked in', async () => {
+  const doc = await seededDoc();
+  const claim = doc.claims.find((c) => c.status === 'verified');
+  assert.ok(claim, 'seeded doc has a verified claim');
+  const res = await postExport({ docId: doc.id, claimId: claim.id });
+  assert.equal(res.status, 200);
+  const md = await res.text();
+  assert.match(md, /^Mode: demo$/m, 'a demo-mode verdict must export as demo, not "not recorded"');
 });

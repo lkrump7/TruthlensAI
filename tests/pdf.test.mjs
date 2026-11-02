@@ -50,3 +50,10 @@ test('extractPdfPages decodes hex strings inside TJ arrays (PyMuPDF-style PDFs)'
 test('extractPdfPages throws a clear error on a non-PDF buffer', () => {
   assert.throws(() => extractPdfPages(Buffer.from('not a pdf at all')), /not a pdf/i);
 });
+
+test('extractPdfPages rejects a decompression bomb instead of inflating without limit', () => {
+  const huge = `BT /F1 12 Tf (${'Water boils '.repeat(2000000)}) Tj ET`;
+  const data = deflateSync(Buffer.from(huge));
+  const stream = `<< /Length ${data.length} /Filter /FlateDecode >>\nstream\n${data.toString('binary')}\nendstream`;
+  assert.throws(() => extractPdfPages(makePdf([stream])), /too large|exceeds|limit/i);
+});

@@ -47,31 +47,64 @@ test('sidecar /embed validates input and either embeds or honestly reports 503',
   assert.ok(body.dim > 0 && body.vectors.every((v) => v.length === body.dim));
 });
 
+test('sidecar /guard validates input and either classifies or honestly reports 503', async (t) => {
+  if (!available) return t.skip('sidecar venv unavailable');
+  const bad = await post('/guard', { texts: 'not-a-list' });
+  assert.equal(bad.status, 400);
+  const empty = await post('/guard', { texts: [] });
+  assert.equal(empty.status, 400);
+  const health = await (await fetch(BASE + '/health')).json();
+  assert.match(health.guardModel || '', /Prompt-Guard-2/, 'health must name the guard model');
+  const res = await post('/guard', { texts: ['Water boils at 100 degrees Celsius at sea level.'] });
+  if (res.status === 503) {
+    assert.ok((await res.json()).error, 'unavailable guard must say why (gated model, missing token, or download failure)');
+    return;
+  }
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.match(body.model, /Prompt-Guard-2/);
+  assert.equal(body.results.length, 1);
+  assert.ok(['BENIGN', 'MALICIOUS'].includes(body.results[0].label));
+  assert.ok(Number.isFinite(body.results[0].score));
+});
+
 test('sidecar returns 400 JSON on vector dimension mismatch, never a dropped connection', async (t) => {
   if (!available) return t.skip('sidecar venv unavailable');
   const ns = 'dims-probe-' + Date.now();
-  await post('/faiss/add', { namespace: ns, items: [{ id: 'a', vector: [1, 0] }] });
-  const res = await post('/faiss/add', { namespace: ns, items: [{ id: 'b', vector: [1, 0, 0] }] });
-  assert.equal(res.status, 400);
-  assert.ok((await res.json()).error);
+  try {
+    await post('/faiss/add', { namespace: ns, items: [{ id: 'a', vector: [1, 0] }] });
+    const res = await post('/faiss/add', { namespace: ns, items: [{ id: 'b', vector: [1, 0, 0] }] });
+    assert.equal(res.status, 400);
+    assert.ok((await res.json()).error);
+  } finally {
+    await post('/faiss/add', { namespace: ns, reset: true, items: [] });
+  }
 });
 
 test('reset with no items clears a namespace instead of leaving stale hits', async (t) => {
   if (!available) return t.skip('sidecar venv unavailable');
   const ns = 'reset-empty-probe-' + Date.now();
-  await post('/faiss/add', { namespace: ns, items: [{ id: 'ev1', vector: [1, 0, 0] }] });
-  await post('/faiss/add', { namespace: ns, reset: true, items: [] });
-  const res = await post('/faiss/search', { namespace: ns, vector: [1, 0, 0], k: 3 });
-  const { hits } = await res.json();
-  assert.equal(hits.length, 0);
+  try {
+    await post('/faiss/add', { namespace: ns, items: [{ id: 'ev1', vector: [1, 0, 0] }] });
+    await post('/faiss/add', { namespace: ns, reset: true, items: [] });
+    const res = await post('/faiss/search', { namespace: ns, vector: [1, 0, 0], k: 3 });
+    const { hits } = await res.json();
+    assert.equal(hits.length, 0);
+  } finally {
+    await post('/faiss/add', { namespace: ns, reset: true, items: [] });
+  }
 });
 
 test('reset add replaces a namespace instead of duplicating evidence ids', async (t) => {
   if (!available) return t.skip('sidecar venv unavailable');
   const ns = 'reset-probe-' + Date.now();
-  await post('/faiss/add', { namespace: ns, items: [{ id: 'ev1', vector: [1, 0, 0] }] });
-  await post('/faiss/add', { namespace: ns, reset: true, items: [{ id: 'ev1', vector: [1, 0, 0] }] });
-  const res = await post('/faiss/search', { namespace: ns, vector: [1, 0, 0], k: 3 });
-  const { hits } = await res.json();
-  assert.equal(hits.filter((h) => h.id === 'ev1').length, 1);
+  try {
+    await post('/faiss/add', { namespace: ns, items: [{ id: 'ev1', vector: [1, 0, 0] }] });
+    await post('/faiss/add', { namespace: ns, reset: true, items: [{ id: 'ev1', vector: [1, 0, 0] }] });
+    const res = await post('/faiss/search', { namespace: ns, vector: [1, 0, 0], k: 3 });
+    const { hits } = await res.json();
+    assert.equal(hits.filter((h) => h.id === 'ev1').length, 1);
+  } finally {
+    await post('/faiss/add', { namespace: ns, reset: true, items: [] });
+  }
 });

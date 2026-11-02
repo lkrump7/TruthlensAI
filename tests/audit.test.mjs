@@ -44,3 +44,15 @@ test('no conformal env means no threshold and no advice', () => {
   assert.equal(out.calibration.thresholdSet, false);
   assert.equal(out.calibration.abstainAdvised, false);
 });
+
+test('skipped semantic, rerank, and NLI passes surface as verdict limitations', () => {
+  const out = assembleStage('Water boils at 100 degrees Celsius at sea level.', {
+    type: 'Scientific',
+    gated: { verdict: 'Supported', supporting: [], contradicting: [], unclassified: [], limitations: ['Verdict rests only on the fetched passages cited here.'] },
+    result: { explanation: 'x' }, judgedBy: 'Muse Spark 1.3', cited: [], stats: { degraded: ['semantic', 'rerank'] }, nliDegraded: true,
+  });
+  const joined = (out.limitations || []).join(' ');
+  assert.match(joined, /semantic search was unavailable/i);
+  assert.match(joined, /reranking was unavailable/i);
+  assert.match(joined, /second-opinion stance check was unavailable/i);
+});

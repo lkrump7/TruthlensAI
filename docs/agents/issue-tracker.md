@@ -151,7 +151,7 @@ enough to hit them.
 | TL-007 | medium | closed | `applyVerdict` still loses concurrent writes |
 | TL-008 | low | closed | Duplicate claim text breaks the 20-claim auto-verify cap |
 | TL-020 | medium | closed | Reader-pick marking saves outside the document lock |
-| TL-023 | medium | open | Unlocked saves and owner checks on the remaining document routes |
+| TL-023 | medium | closed | Unlocked saves and owner checks on the remaining document routes |
 
 TL-007. `applyVerdict` still loses concurrent writes.
 `applyVerdict` in `lib/documents.mjs:80` reloads the document, changes
@@ -177,15 +177,16 @@ marking now happens inside the locked apply, before the report is
 built, so there is no second save. Raised by the final whole-branch
 review.
 
-TL-023. Unlocked saves and owner checks on the remaining routes. Open.
-Two follow-ups, neither fixed yet. `recheckDocument` and `setAutoPaused`
-in `lib/documents.mjs` still save outside `runDocLocked`, the same
-load-to-save window TL-007 and TL-020 closed elsewhere; a verdict or
-follow-up landing inside that window can be overwritten. And the other
-`[id]` routes (assess, auto, recheck, claim verify and challenge) still
-load any document by ID with no owner check when accounts are on. The
-pattern is now set by `canView` in `lib/auth.mjs`. Extending it route
-by route, and locking those two saves, is its own change.
+TL-023. Unlocked saves and owner checks on the remaining routes. Closed.
+Both halves are in the tree. `recheckDocument` and `setAutoPaused` in
+`lib/documents.mjs` save inside `runDocLocked`, and the assess, auto,
+recheck, claim verify and challenge routes all 404 a document the
+requester cannot view under `canView` in `lib/auth.mjs`. Pinned by
+`tests/integration.test.mjs`: with accounts on, a second user gets 404
+from all five routes on another user's document while the owner still
+gets through. Demo documents stay visible to everyone by design, the
+same rule `canView` documents, so history listing keeps merging demo
+documents; private owners never leak, pinned by `tests/history.test.mjs`.
 
 ### Section 4. Media input contracts
 

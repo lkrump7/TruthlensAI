@@ -17,6 +17,10 @@ const { POST: authPost, GET: authGet } = await import('../app/api/auth/route.js'
 const { GET: contradictionsGet } = await import('../app/api/contradictions/route.js');
 const { POST: pdfPost } = await import('../app/api/documents/pdf/route.js');
 const recheckRoute = await import('../app/api/documents/[id]/recheck/route.js');
+const assessRoute = await import('../app/api/documents/[id]/assess/route.js');
+const autoRoute = await import('../app/api/documents/[id]/auto/route.js');
+const claimVerifyRoute = await import('../app/api/documents/[id]/claims/[claimId]/verify/route.js');
+const challengeRoute = await import('../app/api/documents/[id]/claims/[claimId]/challenge/route.js');
 const { createDocument, getDocument, listDocuments, recheckDocument, whenAutoVerificationDone } = await import('../lib/documents.mjs');
 const { metaSearch } = await import('../lib/search.mjs');
 
@@ -27,6 +31,23 @@ test('integration: verify route rejects empty and oversized claims', async () =>
   assert.equal(empty.status, 400);
   const long = await verifyPost(jsonReq('http://t/api/verify', { claim: 'x'.repeat(2001) }));
   assert.equal(long.status, 413);
+});
+
+test('integration: verify route rejects non-string claims and measures length after trimming', async () => {
+  const numeric = await verifyPost(jsonReq('http://t/api/verify', { claim: 123 }));
+  assert.equal(numeric.status, 400);
+  const object = await verifyPost(jsonReq('http://t/api/verify', { claim: { text: 'x' } }));
+  assert.equal(object.status, 400);
+  const padded = await verifyPost(jsonReq('http://t/api/verify', { claim: `  ${'Water boils at 100 degrees Celsius at sea level.'}${' '.repeat(2100)}` }));
+  assert.equal(padded.status, 200, 'padding around a short claim is not part of the claim');
+});
+
+test('integration: documents route rejects a paste that is only page separators', async () => {
+  const before = (await (await docsGet(new Request('http://t/api/documents'))).json()).documents.length;
+  const res = await docsPost(jsonReq('http://t/api/documents', { title: 'Separators only', text: '--- page ---\n--- page ---' }));
+  assert.equal(res.status, 400);
+  const after = (await (await docsGet(new Request('http://t/api/documents'))).json()).documents.length;
+  assert.equal(after, before, 'no empty document is created');
 });
 
 test('integration: verify route returns a demo verdict with citations in demo mode', async () => {
@@ -71,6 +92,16 @@ test('integration: auth route registers, logs in, and rejects bad credentials', 
   const anon = await (await authGet(new Request('http://t/api/auth'))).json();
   assert.equal(anon.user, null);
   delete process.env.AUTH_ENABLED;
+});
+
+test('integration: document creation requires sign-in when accounts are on', async () => {
+  process.env.AUTH_ENABLED = 'true';
+  try {
+    const res = await docsPost(jsonReq('http://t/api/documents', { title: 'Anon', text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }));
+    assert.equal(res.status, 401);
+  } finally {
+    delete process.env.AUTH_ENABLED;
+  }
 });
 
 test('integration: contradiction map surfaces opposing documents as unverified disagreement', async () => {
@@ -258,6 +289,37 @@ test('sad: verify route live failure abstains instead of falling back to canned 
     assert.deepEqual(body.supporting, []);
     assert.ok(body.limitations.some((l) => /Live research failed/.test(l)));
   });
+});
+
+test('integration: document action routes hide another owner document when accounts are on (TL-023)', async () => {
+  process.env.AUTH_ENABLED = 'true';
+  try {
+    const register = async (username) => {
+      const res = await authPost(jsonReq('http://t/api/auth', { action: 'register', username, password: 'correct-horse' }));
+      assert.equal(res.status, 200);
+      return res.headers.get('set-cookie');
+    };
+    const aliceCookie = await register('tl023-alice');
+    const bobCookie = await register('tl023-bob');
+    const doc = await createDocument({ title: 'TL-023 private', owner: 'tl023-alice', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
+    await whenAutoVerificationDone(doc.id);
+    const claimId = (await getDocument(doc.id)).claims[0]?.id || 'claim-1';
+    const asBob = (path, body) => jsonReq(`http://t${path}`, body, { cookie: bobCookie });
+    const bobAssess = await assessRoute.POST(asBob('/x', { text: 'Water boils at 100 degrees Celsius at sea level.' }), { params: { id: doc.id } });
+    assert.equal(bobAssess.status, 404, 'assess hides another owner document');
+    const bobAuto = await autoRoute.POST(asBob('/x', { paused: true }), { params: { id: doc.id } });
+    assert.equal(bobAuto.status, 404, 'auto hides another owner document');
+    const bobRecheck = await recheckRoute.POST(asBob('/x', {}), { params: { id: doc.id } });
+    assert.equal(bobRecheck.status, 404, 'recheck hides another owner document');
+    const bobVerify = await claimVerifyRoute.POST(asBob('/x', {}), { params: { id: doc.id, claimId } });
+    assert.equal(bobVerify.status, 404, 'claim verify hides another owner document');
+    const bobChallenge = await challengeRoute.POST(asBob('/x', { kind: 'prove-wrong' }), { params: { id: doc.id, claimId } });
+    assert.equal(bobChallenge.status, 404, 'challenge hides another owner document');
+    const aliceRecheck = await recheckRoute.POST(jsonReq('http://t/x', {}, { cookie: aliceCookie }), { params: { id: doc.id } });
+    assert.notEqual(aliceRecheck.status, 404, 'owner still reaches their own document');
+  } finally {
+    delete process.env.AUTH_ENABLED;
+  }
 });
 
 test('integration: live-configured document creation records live-failed claims instead of canned verdicts', async () => {

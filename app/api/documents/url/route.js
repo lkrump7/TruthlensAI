@@ -1,13 +1,14 @@
-import { createDocument } from '../../../../lib/store.mjs';
+import { createDocument, publicDocument } from '../../../../lib/store.mjs';
 import { fetchWebsitePages, WebsiteError } from '../../../../lib/website.mjs';
 import { FetchError } from '../../../../lib/errors.mjs';
 import { liveStatus, getModels } from '../../../../lib/meta.mjs';
-import { requestUser } from '../../../../lib/auth.mjs';
+import { authEnabled, requestUser } from '../../../../lib/auth.mjs';
 import { CONFIG } from '../../../../lib/config.mjs';
 
 const mode = () => (liveStatus().configured ? 'live-ready' : 'demo');
 
 export async function POST(req) {
+  if (authEnabled() && !requestUser(req)) return Response.json({ error: 'Sign in first.' }, { status: 401 });
   const body = await req.json().catch(() => ({}));
   const url = String(body.url || '').trim();
   if (!url) return Response.json({ error: 'Paste a website address first.' }, { status: 400 });
@@ -33,6 +34,5 @@ export async function POST(req) {
     sourceUrl: site.url,
     owner: requestUser(req)?.username || 'demo',
   });
-  const { chunks, ...pub } = doc;
-  return Response.json({ document: { ...pub, chunkCount: chunks.length }, mode: mode(), models: getModels() });
+  return Response.json({ document: publicDocument(doc), mode: mode(), models: getModels() });
 }

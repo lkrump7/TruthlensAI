@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { extractClaimsFromText, splitAtomicClaims } from '../lib/claims.mjs';
+import { extractClaimsFromText, extractClaimsFromPages, splitAtomicClaims } from '../lib/claims.mjs';
+
+const allowAll = async (arr) => arr.map(() => ({ action: 'allow' }));
 
 test('extraction splits compound statements into atomic claims', async () => {
   const revenue = await extractClaimsFromText('Revenue rose 20% in 2020 and costs fell 5% in 2021.');
@@ -36,4 +38,24 @@ test('labelled recall fixture: every expected proposition is extracted', async (
     for (const e of expected) { total++; if (joined.includes(e.toLowerCase())) found++; }
   }
   assert.equal(found, total, `recall ${found}/${total}`);
+});
+
+test('near-dedupe keeps distinct location variants with the same numbers', async () => {
+  const claims = await extractClaimsFromText(
+    'The county reported 20 cases in 2020. The neighboring county reported 20 cases in 2020.',
+    { screenTexts: allowAll },
+  );
+  assert.equal(claims.length, 2, JSON.stringify(claims.map((c) => c.text)));
+});
+
+test('cross-page sentence keeps both pages', async () => {
+  const claims = await extractClaimsFromPages(
+    [
+      { page: 1, text: 'The treatment reduced mortality for patients with severe disease and' },
+      { page: 2, text: 'improved recovery times significantly in the trial.' },
+    ],
+    { screenTexts: allowAll },
+  );
+  assert.equal(claims.length, 1, JSON.stringify(claims));
+  assert.deepEqual(claims[0].pages, [1, 2], JSON.stringify(claims[0]));
 });
