@@ -22,6 +22,6 @@ export async function POST(req) {
   const texts = all.slice(0, MAX_BATCH_CLAIMS);
   if (!texts.length) return Response.json({ error: 'Enter at least one claim first. Put one claim per line.' }, { status: 400 });
   const owner = requestUser(req)?.username || 'demo';
-  const results = await verifyClaimBatch(texts, { owner });
+  const results = await verifyClaimBatch(texts, { owner, signal: req.signal, timeoutMs: 60000 });
   return Response.json({ results, mode: mode(), limit: MAX_BATCH_CLAIMS, dropped: all.slice(MAX_BATCH_CLAIMS) });
 }

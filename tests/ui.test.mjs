@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
 // One rendered surface, asserted together: the components first, then the page that composes them.
-const page = ['../app/components/icons.js', '../app/components/mic.js', '../app/components/verdict.js', '../app/components/challenge.js', '../app/components/modal.js', '../app/page.js'].map(read).join('\n');
+const page = ['../app/components/icons.js', '../app/components/mic.js', '../app/components/verdict.js', '../app/components/challenge.js', '../app/components/modal.js', '../app/components/personas.js', '../app/page.js'].map(read).join('\n');
 
 test('verify result renders inline under the verify form, not only at the page bottom', () => {
   const formAt = page.indexOf('Verify this claim');

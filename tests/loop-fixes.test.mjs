@@ -108,9 +108,11 @@ test('hero images ship lighter webp variants', () => {
   assert.ok(existsSync(new URL('../public/mockup/researchers.webp', import.meta.url)), 'researchers.webp missing');
   assert.ok(existsSync(new URL('../public/mockup/students.webp', import.meta.url)), 'students.webp missing');
   assert.ok(existsSync(new URL('../public/mockup/img4.webp', import.meta.url)), 'img4.webp missing');
-  assert.match(page, /researchers\.webp/);
-  assert.match(page, /students\.webp/);
-  assert.match(page, /img4\.webp/);
+  const personas = readFileSync(new URL('../app/components/personas.js', import.meta.url), 'utf8');
+  assert.match(personas, /researchers\.webp/);
+  assert.match(personas, /students\.webp/);
+  assert.match(personas, /img4\.webp/);
+  assert.match(page, /<Personas/);
 });
 
 test('hot derived lists are memoized', () => {

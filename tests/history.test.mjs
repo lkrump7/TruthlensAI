@@ -62,6 +62,15 @@ test('recordInvestigation persists a standalone verdict a fresh read can find', 
   assert.ok(hit.claim.supporting !== undefined, 'entry carries the full verdict record for resume');
 });
 
+test('recordInvestigation replays the same key instead of recording twice', async () => {
+  const { recordInvestigation: record2 } = await import('../lib/history.mjs');
+  const key = `idem-${Date.now()}-${Math.random()}`;
+  const first = await record2({ owner: 'reader-idem', workflow: 'claim', result: verdictFor('Water boils at 100 degrees Celsius at sea level.'), idempotencyKey: key });
+  const second = await record2({ owner: 'reader-idem', workflow: 'claim', result: verdictFor('Water boils at 100 degrees Celsius at sea level.'), idempotencyKey: key });
+  assert.equal(second.claim.id, first.claim.id, 'same key replays the same claim');
+  assert.equal(second.doc.id, first.doc.id);
+});
+
 test('recordInvestigation drops ephemeral verdict fields instead of persisting them', async () => {
   const saved = await recordInvestigation({
     owner: 'reader-ephemeral',
@@ -188,6 +197,37 @@ test('listHistory deduplicates similar results and counts the repeats', async ()
   const split = await listHistory('reader-dedupe');
   assert.ok(split.some((e) => e.workflow === 'claim' && /released 40 million/.test(e.text)), 'standalone row survives');
   assert.ok(split.some((e) => e.workflow === 'question' && /released 40 million/.test(e.text)), 'same words in another workflow stay a separate result');
+});
+
+test('verifyClaimBatch honors an already-aborted signal and launches nothing', async () => {
+  let calls = 0;
+  const controller = new AbortController();
+  controller.abort();
+  const out = await verifyClaimBatch(['Alpha reservoir levels rose sharply during June.'], {
+    owner: 'reader-batch-abort',
+    signal: controller.signal,
+    verifyOne: async (text) => { calls++; return verdictFor(text, 'Supported'); },
+  });
+  assert.equal(calls, 0, 'aborted batch launches no investigations');
+  assert.equal(out.length, 0, 'aborted batch returns no results');
+});
+
+test('verifyClaimBatch degrades a slow claim to Unverifiable without stalling the batch', async () => {
+  const out = await verifyClaimBatch(
+    ['Fast reservoir claim passes quickly here.', 'Slow reservoir claim stalls far too long here.'],
+    {
+      owner: 'reader-batch-timeout',
+      timeoutMs: 30,
+      verifyOne: async (text) => {
+        if (/Slow/.test(text)) await new Promise((r) => setTimeout(r, 500));
+        return verdictFor(text, 'Supported');
+      },
+    },
+  );
+  assert.equal(out[0].ok, true);
+  assert.equal(out[0].result.verdict, 'Supported');
+  assert.equal(out[1].ok, true, 'timeout still yields a result slot');
+  assert.equal(out[1].result.verdict, 'Unverifiable', JSON.stringify(out[1].result));
 });
 
 test('verifyClaimBatch keeps typed order, isolates one failure, and records the rest', async () => {

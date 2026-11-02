@@ -10,12 +10,15 @@ import ThemeToggle from './components/theme-toggle.js';
 import { WebsiteScrutiny } from './components/website.js';
 import { buildHash, parseHash, filterClaims, createDebounced, uploadSizeError, safeResponseJson, timeAgo, claimCategory } from '../lib/ui-state.mjs';
 import { BookDossier } from './components/book-dossier.js';
+import { Personas } from './components/personas.js';
 import { scrutinyTelemetry } from '../lib/website-scrutiny.mjs';
 
 // Reads one streamed check. Progress and the verdict go to the callbacks.
 // A caller that passes an abort signal can stop the read mid-flight.
-async function readVerifyStream(claimText, { signal, onProgress, onVerdict }) {
-  const r = await fetch('/api/verify/stream', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ claim: claimText }), signal });
+// One idempotency key per attempt lets the blocking fallback replay the
+// streamed record instead of recording a second history entry.
+async function readVerifyStream(claimText, { signal, onProgress, onVerdict, idempotencyKey }) {
+  const r = await fetch('/api/verify/stream', { method: 'POST', headers: { 'content-type': 'application/json', ...(idempotencyKey ? { 'idempotency-key': idempotencyKey } : {}) }, body: JSON.stringify({ claim: claimText }), signal });
   if (!r.ok || !r.body) throw new Error('stream unavailable');
   const reader = r.body.getReader();
   const decoder = new TextDecoder();
@@ -228,9 +231,11 @@ export default function Home() {
       setAnnounce(`Verdict: ${d.verdict}. ${d.text}`);
       void loadHistory();
     };
+    const attemptKey = (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`);
     try {
       await readVerifyStream(claim, {
         signal: controller.signal,
+        idempotencyKey: attemptKey,
         onProgress: (p) => setLiveStages((s) => [...s, p]),
         onVerdict: applyResult,
       });
@@ -241,9 +246,10 @@ export default function Home() {
         setLiveStages([]);
       } else {
         // Stream failed. Run the blocking check and say plainly that the
-        // finished verdict arrived without live progress.
+        // finished verdict arrived without live progress. Same key replays
+        // the streamed record instead of saving twice.
         try {
-          const r = await fetch('/api/verify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ claim }), signal: controller.signal });
+          const r = await fetch('/api/verify', { method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': attemptKey }, body: JSON.stringify({ claim }), signal: controller.signal });
           const d = await r.json().catch(() => ({}));
           if (r.status === 429) { setErr('Too many checks. Wait a minute and try again.'); return; }
           if (!r.ok) { setErr(d.error || 'The check failed. Try again.'); return; }
@@ -280,6 +286,7 @@ export default function Home() {
         const fd = new FormData(); fd.append('file', file); fd.append('title', title || file.name);
         r = await fetch('/api/documents/docx', { method: 'POST', body: fd }); d = await safeResponseJson(r);
       } else {
+        if (file.size > 200000) { setBusy(''); setErr('That text file is larger than 200,000 characters. Split it and try again.'); e.target.value = ''; return; }
         const txt = await file.text();
         r = await fetch('/api/documents', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: title || file.name, text: txt }) }); d = await safeResponseJson(r);
       }
@@ -382,9 +389,11 @@ export default function Home() {
       if (d.historyDocId && d.historyClaimId) setChatContext({ docId: d.historyDocId, claimId: d.historyClaimId, kind: 'history' });
       void loadHistory();
     };
+    const chatKey = (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`);
     try {
       await readVerifyStream(text, {
         signal: controller.signal,
+        idempotencyKey: chatKey,
         onProgress: (p) => setLiveStages((s) => [...s, p]),
         onVerdict: applyChatResult,
       });
@@ -395,7 +404,7 @@ export default function Home() {
         setLiveStages([]);
       } else {
         try {
-          const r = await fetch('/api/verify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ claim: text }), signal: controller.signal });
+          const r = await fetch('/api/verify', { method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': chatKey }, body: JSON.stringify({ claim: text }), signal: controller.signal });
           const d = await r.json().catch(() => ({}));
           if (!r.ok) { setChatMessages((m) => [...m, { role: 'note', text: d.error || 'That check failed. Try again.' }]); return; }
           applyChatResult(d);
@@ -691,31 +700,7 @@ export default function Home() {
                 </div>
               </div>
             </section>
-            <section className="home-section" data-audience>
-              <p className="mock-kicker"><Icon name="users" />Purpose-Built Utility</p>
-              <h2>Who uses TruthLens</h2>
-              <div className="audience-top">
-                <p className="home-body">TruthLens is for researchers and journalists who must check a claim before they publish or use it. Truth seekers, lifelong learners, students, and nonfiction readers use it too.</p>
-                <aside className="audience-note"><strong>Same evidence for all.</strong><br />Truth seekers can test what they read. Conspiracy theorists can test their own ideas with the same evidence. Lifelong learners can follow a question. Nonfiction readers can check the book in their hands.</aside>
-              </div>
-              <div className="audience-grid mock-personas">
-                <article className="mock-persona">
-                  <picture><source srcSet="/mockup/img4.webp" type="image/webp" /><img className="mock-persona-img" src="/mockup/img4.jpg" alt="Investigative journalists reviewing verified documents" loading="lazy" decoding="async" width={640} height={400} /></picture>
-                  <span className="mock-persona-ic" data-audience-icon="journalists"><span className="material-symbols-outlined">newspaper</span></span><h3>Journalists</h3>
-                  <p>Check a claim before you publish. Open each source, cross-examine contradicting claims, and export the cryptographically verified dossier for your story file.</p><p className="mock-workflow">Workflow: Newsroom Pre-Pub</p>
-                </article>
-                <article className="mock-persona">
-                  <picture><source srcSet="/mockup/researchers.webp" type="image/webp" /><img className="mock-persona-img" src="/mockup/researchers.jpg" alt="Researcher analyzing data on dual monitors in a lab" loading="lazy" decoding="async" width={640} height={400} /></picture>
-                  <span className="mock-persona-ic" data-audience-icon="researchers"><span className="material-symbols-outlined">biotech</span></span><h3>Researchers</h3>
-                  <p>Check a claim before you cite it. See evidence for and against side by side. Uncover exactly where the checkers split and what missing data could change the verdict.</p><p className="mock-workflow">Workflow: Literature Review</p>
-                </article>
-                <article className="mock-persona">
-                  <picture><source srcSet="/mockup/students.webp" type="image/webp" /><img className="mock-persona-img" src="/mockup/students.jpg" alt="Student studying a book in a library" loading="lazy" decoding="async" width={640} height={400} /></picture>
-                  <span className="mock-persona-ic" data-audience-icon="students"><span className="material-symbols-outlined">menu_book</span></span><h3>Students</h3>
-                  <p>Check a claim before you put it in an essay. Read unabridged quotes instead of misleading summaries. Archive the report alongside your personal research notes.</p><p className="mock-workflow">Workflow: Academic Inquiry</p>
-                </article>
-              </div>
-            </section>
+            <Personas />
             <section className="mock-taxonomy" data-taxonomy aria-label="Verdict taxonomy">
               <div className="mock-tax-head">
                 <div>

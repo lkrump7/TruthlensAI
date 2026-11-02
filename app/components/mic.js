@@ -23,7 +23,11 @@ export function MicButton({ onText, label = 'Dictate', variant = 'button' }) {
   const [state, setState] = useState('idle');
   const [note, setNote] = useState('');
   const rec = useRef(null);
+  const stopTimer = useRef(null);
+  const transcribeAbort = useRef(null);
   useEffect(() => () => {
+    if (stopTimer.current) { clearTimeout(stopTimer.current); stopTimer.current = null; }
+    if (transcribeAbort.current) { try { transcribeAbort.current.abort(); } catch { /* already done */ } transcribeAbort.current = null; }
     const r = rec.current;
     if (!r) return;
     rec.current = null;
@@ -45,10 +49,13 @@ export function MicButton({ onText, label = 'Dictate', variant = 'button' }) {
       source.connect(processor); processor.connect(ctx.destination);
       rec.current = { stream, ctx, processor, source, frames, rate: ctx.sampleRate };
       setState('listening');
+      if (stopTimer.current) clearTimeout(stopTimer.current);
+      stopTimer.current = setTimeout(() => { stopTimer.current = null; void stop(); }, 60000);
     } catch { setNote('The mic is blocked. Allow it in your browser, or type.'); }
   }
   async function stop() {
     if (state !== 'listening' || !rec.current) return;
+    if (stopTimer.current) { clearTimeout(stopTimer.current); stopTimer.current = null; }
     const { stream, ctx, processor, source, frames, rate } = rec.current;
     rec.current = null;
     try { processor.disconnect(); source.disconnect(); } catch { /* already closed */ }
@@ -59,14 +66,19 @@ export function MicButton({ onText, label = 'Dictate', variant = 'button' }) {
     ctx.close().catch(() => {});
     if (!total) { setState('idle'); return setNote('We did not hear you. Hold the button, speak, then let go.'); }
     setState('working');
+    if (transcribeAbort.current) { try { transcribeAbort.current.abort(); } catch { /* replaced */ } }
+    transcribeAbort.current = new AbortController();
     try {
       const wav = encodeWav(resampleTo(merged, rate, 24000), 24000);
       const fd = new FormData(); fd.append('audio', wav, 'dictation.wav');
-      const r = await fetch('/api/transcribe', { method: 'POST', body: fd });
+      const r = await fetch('/api/transcribe', { method: 'POST', body: fd, signal: transcribeAbort.current.signal });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) setNote(d.error || 'We could not turn your voice into text. Please type.');
       else if (d.transcript) onText(d.transcript);
-    } catch { setNote('We could not turn your voice into text. Please type.'); } finally { setState('idle'); }
+    } catch (e) {
+      if (e?.name === 'AbortError') return;
+      setNote('We could not turn your voice into text. Please type.');
+    } finally { transcribeAbort.current = null; setState('idle'); }
   }
   const hold = {
     onPointerDown: (e) => { e.preventDefault(); start(); },

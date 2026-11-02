@@ -57,6 +57,47 @@ test('corrupt document store is quarantined, not silently discarded', async () =
   assert.ok(readdirSync(dir).some((f) => f.includes('corrupt')), 'corrupt bytes preserved aside');
 });
 
+test('concurrent FileRepository instances do not lose each other writes', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'tl-conc-inst-'));
+  const file = join(dir, 'documents.json');
+  const { FileRepository } = await import('../lib/repositories.mjs?x=conc');
+  const a = new FileRepository(file);
+  const b = new FileRepository(file);
+  await Promise.all([
+    a.save({ id: 'doc-a', owner: 'demo', claims: [] }),
+    b.save({ id: 'doc-b', owner: 'demo', claims: [] }),
+  ]);
+  const fresh = new FileRepository(file);
+  const ids = new Set((await fresh.loadAll()).map((d) => d.id));
+  assert.ok(ids.has('doc-a') && ids.has('doc-b'), `both docs survive, got ${[...ids]}`);
+});
+
+test('rollupCompound preserves sub-investigation trajectories', async () => {
+  const { rollupCompound } = await import('../lib/pipeline.mjs');
+  const subs = [
+    { text: 'A rose.', verdict: 'Supported', judgedBy: 'Muse Spark 1.3', supporting: [], contradicting: [], unclassified: [], trajectory: [{ stage: 'triage' }, { stage: 'judge' }] },
+    { text: 'B fell.', verdict: 'Supported', judgedBy: 'Muse Spark 1.3', supporting: [], contradicting: [], unclassified: [], trajectory: [{ stage: 'triage' }] },
+  ];
+  const out = rollupCompound('A rose and B fell.', subs);
+  assert.ok(Array.isArray(out.trajectory), 'compound keeps a trajectory');
+  assert.equal(out.trajectory.length, 3, JSON.stringify(out.trajectory));
+  assert.deepEqual(out.subclaims[0].trajectory.length, 2);
+});
+
+test('a stale cross-process lock does not block writes and is cleaned up', async () => {
+  const { mkdirSync, existsSync, utimesSync } = await import('node:fs');
+  const dir = mkdtempSync(join(tmpdir(), 'tl-stale-lock-'));
+  const file = join(dir, 'documents.json');
+  const { FileRepository } = await import('../lib/repositories.mjs?x=lock');
+  mkdirSync(`${file}.lock`, { recursive: true });
+  const old = new Date(Date.now() - 30000);
+  utimesSync(`${file}.lock`, old, old);
+  const repo = new FileRepository(file);
+  await repo.save({ id: 'doc-1', owner: 'demo', claims: [] });
+  assert.ok(!existsSync(`${file}.lock`), 'stale lock is recovered, not left behind');
+  assert.equal((await new FileRepository(file).loadAll()).length, 1);
+});
+
 test('document store writes are atomic (rename replaces the file, no temp left)', async () => {
   const { statSync } = await import('node:fs');
   const dir = mkdtempSync(join(tmpdir(), 'tl-store2-'));
