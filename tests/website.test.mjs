@@ -1,6 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fetchWebsitePages, extractWebsiteTitle, MIN_WEBSITE_CHARS } from '../lib/website.mjs';
+
+// Isolated store: the tests below create documents via dynamic imports and
+// must not share data/documents.json with parallel test processes.
+const websiteDir = mkdtempSync(join(tmpdir(), 'tl-website-'));
+process.env.TRUTHLENS_STORE_FILE = join(websiteDir, 'documents.json');
+process.env.TRUTHLENS_USERS_FILE = join(websiteDir, 'users.json');
 
 const ARTICLE = `<html><head><title>Reservoir &amp; Safety Report</title><style>.x{color:red}</style></head>
 <body><nav>Home About Sign up for our newsletter</nav><script>track()</script>

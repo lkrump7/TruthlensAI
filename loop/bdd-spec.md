@@ -43,6 +43,16 @@ is covered from Node in `tests/bdd-phase-b.test.mjs`.
 - History filters: verdict and text narrow past checks.
 - Accounts: when enabled, registration gates libraries per owner.
 
+## Phase D — `tests/bdd-phase-d.test.mjs` (5 scenarios, standard pipeline journey)
+
+- Demo trio: Supported (Spark, cited passage, forensics+uncertainty),
+  Contradicted (Wonder, two contradicting passages), Unverifiable Snelgrove
+  (zero citations, honest explanation).
+- Other verdicts: Misleading (Great Wall) and Outdated (Pluto, both eras named).
+- Journalist export: checked claim downloads with verdict, passage, source address.
+- Repeat checks: same claim twice folds into one history row, both runs counted.
+- Compound input: two-part claim judged Partially supported with both-side citations.
+
 ## Browser — `e2e/bdd-journeys.spec.js` (4 scenarios, demo mode)
 
 - Workspace loads with check tools usable.

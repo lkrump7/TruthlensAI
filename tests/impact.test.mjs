@@ -2,6 +2,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildReport } from '../lib/report.mjs';
 import { buildContradictionMap } from '../lib/contradictions.mjs';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+// Isolated store: this file writes documents and must not share
+// data/documents.json with parallel test processes (see loop/bdd-progress.md).
+const impactDir = mkdtempSync(join(tmpdir(), 'tl-impact-'));
+process.env.TRUTHLENS_STORE_FILE = join(impactDir, 'documents.json');
+process.env.TRUTHLENS_USERS_FILE = join(impactDir, 'users.json');
 import { createDocument, recheckDocument, whenAutoVerificationDone } from '../lib/store.mjs';
 
 test('report puts high-impact disputed claims first and never emits a truth score', () => {

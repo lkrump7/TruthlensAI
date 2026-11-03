@@ -3,6 +3,15 @@ import assert from 'node:assert/strict';
 import { guardVerdicts, screenTextsWithGuard } from '../lib/guard.mjs';
 import { researchClaim } from '../lib/research.mjs';
 import { extractClaimsFromPages } from '../lib/claims.mjs';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+// Isolated store: this file writes documents and must not share
+// data/documents.json with parallel test processes (see loop/bdd-progress.md).
+const guardDir = mkdtempSync(join(tmpdir(), 'tl-guard-'));
+process.env.TRUTHLENS_STORE_FILE = join(guardDir, 'documents.json');
+process.env.TRUTHLENS_USERS_FILE = join(guardDir, 'users.json');
 import { createDocument } from '../lib/store.mjs';
 
 test('guardVerdicts posts texts to the sidecar /guard and returns aligned verdicts', async () => {

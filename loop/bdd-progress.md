@@ -63,6 +63,20 @@
 - Ruling: did not delete the bloated dev `data/documents.json` (gitignored,
   not mine to purge); isolation makes its size irrelevant to the suite.
 
+## Phase D + shared-store flake hunt
+- Phase D (`tests/bdd-phase-d.test.mjs`, 5/5): standard-user pipeline paths —
+  demo trio, Misleading/Outdated, journalist export, repeat-check grouping,
+  compound input. Demo verdicts probed before locking (Great Wall Misleading,
+  Pluto Outdated, Apollo Supported, compound Partially supported).
+- Flake hunt: full suite intermittently failed in pre-existing tests sharing
+  `data/documents.json` (lock timeouts, cross-talk). Base-only runs green;
+  failures appeared only under full parallel load. Fixed by isolating the
+  remaining writers (`store`, `document-manage`, `guard`, `impact`,
+  `website` test files) with per-file tmp stores — repo precedent, no product
+  code touched. Full suite 729/729 twice after (~19s, down from ~32s).
+- Ruling: `patterns.test.mjs` only imports (never calls) `createDocument`,
+  so it needed no header; verified by grep before skipping it.
+
 ## Fix pass (independent reviewer, 6 Important findings)
 - Fixed: persistence assertion was vacuous (`[]` is truthy) — now verifies the
   doc's own claim through its route, asserts the verdict survives reload, and
