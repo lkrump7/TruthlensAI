@@ -52,7 +52,11 @@ test('live research failures stay generic for the client', async () => {
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(new URL('../app/api/verify/route.js', import.meta.url), 'utf8');
   assert.doesNotMatch(src, /Live research failed \(\$\{err\.message\}\)/);
-  assert.match(src, /Live research failed\. Retry the claim/);
+  assert.match(src, /liveFailedResult/);
+  const { liveFailedResult } = await import('../lib/errors.mjs?x=sec-generic');
+  const out = liveFailedResult('test claim', new Error('raw-backend-detail-9f2c7d1e5b'), { type: 'Scientific' });
+  assert.deepEqual(out.limitations, ['Live research failed. Retry the claim.']);
+  assert.ok(!JSON.stringify(out).includes('raw-backend-detail-9f2c7d1e5b'));
 });
 
 test('a corrupt document store fails closed instead of wiping on next save', async () => {

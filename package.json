@@ -19,7 +19,8 @@
     "next": "^14.2.5",
     "pg": "^8.23.1",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "undici": "^8.12.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",

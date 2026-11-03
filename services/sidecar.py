@@ -23,6 +23,14 @@ import pymupdf
 
 NS_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
+# Hardening caps: the sidecar is localhost-bound with no auth, so every
+# count a client controls gets a bound before any work is allocated.
+MAX_BODY_BYTES = 200_000_000
+MAX_ADD_ITEMS = 1000
+MAX_TEXTS = 100
+MAX_PASSAGES = 100
+MAX_PAIRS = 100
+
 
 def check_namespace(ns):
     if not NS_RE.match(str(ns or "")):
@@ -197,12 +205,20 @@ class Handler(BaseHTTPRequestHandler):
 
     def _do_post(self):
         try:
-            body = json.loads(self.rfile.read(int(self.headers.get("content-length", 0))) or b"{}")
+            declared = int(self.headers.get("content-length") or 0)
+        except (TypeError, ValueError):
+            return self._json(400, {"error": "bad content-length."})
+        if declared > MAX_BODY_BYTES:
+            return self._json(413, {"error": "request body too large (200 MB limit)."})
+        try:
+            body = json.loads((self.rfile.read(declared) if declared > 0 else b"") or b"{}")
         except Exception as e:
             return self._json(400, {"error": f"bad json: {e}"})
         if self.path == "/faiss/add":
             ns = check_namespace(body.get("namespace", "default"))
             items = body.get("items", [])
+            if len(items) > MAX_ADD_ITEMS:
+                return self._json(413, {"error": f"too many items (limit {MAX_ADD_ITEMS})."})
             if body.get("reset"):
                 INDEXES.pop(ns, None)
                 for suffix in (".faiss", ".ids.json"):
@@ -239,13 +255,16 @@ class Handler(BaseHTTPRequestHandler):
             if vec.shape[1] != idx.d:
                 raise ValueError(f"vector dimension {vec.shape[1]} does not match index dimension {idx.d}")
             faiss.normalize_L2(vec)
-            scores, pos = idx.search(vec, min(int(body.get("k", 5)), idx.ntotal))
+            k = max(1, min(int(body.get("k", 5)), idx.ntotal))
+            scores, pos = idx.search(vec, k)
             hits = [{"id": ids[int(p)], "score": float(s)} for s, p in zip(scores[0], pos[0]) if p >= 0]
             return self._json(200, {"hits": hits})
         if self.path == "/embed":
             texts = body.get("texts")
             if not isinstance(texts, list) or not texts or not all(isinstance(t, str) for t in texts):
                 return self._json(400, {"error": "texts must be a non-empty list of strings"})
+            if len(texts) > MAX_TEXTS:
+                return self._json(413, {"error": f"too many texts (limit {MAX_TEXTS})."})
             model = get_embed_model()
             if model is None:
                 return self._json(503, {"error": f"embeddings unavailable: {_embed_error}"})
@@ -256,6 +275,8 @@ class Handler(BaseHTTPRequestHandler):
             passages = body.get("passages")
             if not isinstance(query, str) or not isinstance(passages, list) or not passages or not all(isinstance(p, str) for p in passages):
                 return self._json(400, {"error": "query and a non-empty passages list of strings are required"})
+            if len(passages) > MAX_PASSAGES:
+                return self._json(413, {"error": f"too many passages (limit {MAX_PASSAGES})."})
             model = get_rerank_model()
             if model is None:
                 return self._json(503, {"error": f"rerank unavailable: {_rerank_error}"})
@@ -265,6 +286,8 @@ class Handler(BaseHTTPRequestHandler):
             pairs = body.get("pairs")
             if not isinstance(pairs, list) or not pairs or not all(isinstance(p, list) and len(p) == 2 and all(isinstance(x, str) for x in p) for p in pairs):
                 return self._json(400, {"error": "pairs must be a non-empty list of [premise, hypothesis] string pairs"})
+            if len(pairs) > MAX_PAIRS:
+                return self._json(413, {"error": f"too many pairs (limit {MAX_PAIRS})."})
             model, tokenizer = get_nli()
             if model is None:
                 return self._json(503, {"error": f"nli unavailable: {_nli_error}"})
@@ -285,6 +308,8 @@ class Handler(BaseHTTPRequestHandler):
             texts = body.get("texts")
             if not isinstance(texts, list) or not texts or not all(isinstance(t, str) for t in texts):
                 return self._json(400, {"error": "texts must be a non-empty list of strings"})
+            if len(texts) > MAX_TEXTS:
+                return self._json(413, {"error": f"too many texts (limit {MAX_TEXTS})."})
             model, tokenizer = get_guard()
             if model is None:
                 return self._json(503, {"error": f"guard unavailable: {_guard_error}"})

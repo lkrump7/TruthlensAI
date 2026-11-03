@@ -3,13 +3,22 @@ import { videoToPages, mimeForVideoFile, MAX_VIDEO_BYTES } from '../../../../lib
 import { voiceModel } from '../../../../lib/voice.mjs';
 import { liveStatus, getModels } from '../../../../lib/meta.mjs';
 import { authEnabled, requestUser } from '../../../../lib/auth.mjs';
-import { storeOriginal, ORIGINAL_NOT_KEPT_WARNING, contentLengthTooLarge } from '../../../../lib/media-store.mjs';
+import { storeOriginal, ORIGINAL_NOT_KEPT_WARNING, contentLengthTooLarge, needsContentLength } from '../../../../lib/media-store.mjs';
 import { pagesCharCount } from '../../../../lib/documents.mjs';
 import { CONFIG } from '../../../../lib/config.mjs';
+import { createBoundedLimiter, clientIp } from '../../../../lib/rate-limit.mjs';
+
+const videoUploadLimiter = createBoundedLimiter({ windowMs: 60 * 1000, maxHits: 10, maxKeys: 1000 });
+export function videoUploadRateLimited(key) {
+  return videoUploadLimiter.check(key);
+}
 
 export async function POST(req) {
   if (authEnabled() && !requestUser(req)) return Response.json({ error: 'Sign in first.' }, { status: 401 });
+  const ip = clientIp(req);
+  if (videoUploadRateLimited(`documents-video:${ip}`)) return Response.json({ error: 'Too many uploads. Wait a minute and try again.' }, { status: 429, headers: { 'Retry-After': '60' } });
   if (contentLengthTooLarge(req, MAX_VIDEO_BYTES)) return Response.json({ error: `Video is larger than ${MAX_VIDEO_BYTES / (1024 * 1024)} MB.` }, { status: 413 });
+  if (needsContentLength(req)) return Response.json({ error: 'Uploads need a Content-Length header so oversize files fail fast. Your client did not send one.' }, { status: 411 });
   const form = await req.formData().catch(() => null);
   const file = form?.get('file');
   if (!file || typeof file.arrayBuffer !== 'function') return Response.json({ error: 'Choose a video file first.' }, { status: 400 });

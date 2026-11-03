@@ -1,5 +1,6 @@
 import { Icon } from './icons.js';
 import { cls } from './verdict.js';
+import { safeHttpUrl } from '../../lib/ui-state.mjs';
 
 // Website Scrutiny and Ingestion workbench. Every number shown comes from the
 // loaded document: word and paragraph counts, claim verdict tallies, and the
@@ -21,6 +22,7 @@ export function WebsiteScrutiny({
 }) {
   const t = telemetry || { words: 0, paragraphs: 0, total: 0, supported: 0, contradicted: 0, partial: 0, neutralized: 0, host: '' };
   const shortId = String(doc.id || '').slice(0, 8) || 'unknown';
+  const urlHref = safeHttpUrl(doc.sourceUrl);
   const checking = doc.status === 'verifying';
   const unchecked = t.total - (t.supported + t.contradicted + t.partial);
   const filters = [
@@ -56,7 +58,7 @@ export function WebsiteScrutiny({
 
       <div className="scr-urlbar">
         <Icon name="website" />
-        <a href={doc.sourceUrl} target="_blank" rel="noreferrer">{doc.sourceUrl}</a>
+        {urlHref ? <a href={urlHref} target="_blank" rel="noreferrer">{doc.sourceUrl}</a> : <span>{doc.sourceUrl}</span>}
         <span className="scr-host">{t.host || 'saved page'}</span>
         <span className={checking ? 'stamp v-Unverifiable' : 'stamp v-Supported'}>{checking ? 'Checking' : 'Loaded'}</span>
       </div>

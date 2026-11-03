@@ -26,9 +26,17 @@ export function ChallengeDirections({ onChallenge, busy, ready }) {
     </div>
   );
 }
+export function suggestKey(r) {
+  if (!r) return '';
+  return [
+    r.text, r.verdict, r.followups?.length || 0,
+    r.supporting?.length || 0, r.contradicting?.length || 0, r.unclassified?.length || 0,
+    r.research?.fetched || 0, r.research?.sourcesFound || 0,
+  ].join('::');
+}
 export function SuggestedNext({ r, onPick, busy }) {
   const [state, setState] = useState({ loading: true, suggestions: [], source: '', error: '' });
-  const verdictKey = r ? `${r.text}::${r.verdict}::${r.followups?.length || 0}` : '';
+  const verdictKey = suggestKey(r);
   useEffect(() => {
     if (!r) return undefined;
     let alive = true;

@@ -120,7 +120,10 @@ test('integration: document service owner filtering, get and recheck history', a
   assert.equal((await getDocument(doc.id)).title, 'Owned');
   assert.ok((await listDocuments('carol')).some((d) => d.id === doc.id));
   assert.ok(!(await listDocuments('dave')).some((d) => d.id === doc.id));
-  const before = doc.claims[0].history.length;
+  // The repository has copy semantics: wait for the background pass, then
+  // re-read settled state instead of relying on the held object.
+  await whenAutoVerificationDone(doc.id);
+  const before = (await getDocument(doc.id)).claims[0].history.length;
   const rechecked = await recheckDocument(doc.id);
   assert.equal(rechecked.claims[0].history.length, before + 1);
   assert.equal(await recheckDocument('doc-999999'), null);

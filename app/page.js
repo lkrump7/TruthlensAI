@@ -8,7 +8,8 @@ import { Modal } from './components/modal.js';
 import { GaugeRing, StanceBar } from './components/forensic.js';
 import ThemeToggle from './components/theme-toggle.js';
 import { WebsiteScrutiny } from './components/website.js';
-import { buildHash, parseHash, filterClaims, createDebounced, uploadSizeError, safeResponseJson, timeAgo, claimCategory } from '../lib/ui-state.mjs';
+import { buildHash, parseHash, filterClaims, createDebounced, safeResponseJson, timeAgo, claimCategory, safeHttpUrl } from '../lib/ui-state.mjs';
+import { shouldFallbackAfterStreamError, classifyUpload, pageLabel } from '../lib/page-logic.mjs';
 import { BookDossier } from './components/book-dossier.js';
 import { Personas } from './components/personas.js';
 import { scrutinyTelemetry } from '../lib/website-scrutiny.mjs';
@@ -19,7 +20,8 @@ import { scrutinyTelemetry } from '../lib/website-scrutiny.mjs';
 // streamed record instead of recording a second history entry.
 async function readVerifyStream(claimText, { signal, onProgress, onVerdict, idempotencyKey }) {
   const r = await fetch('/api/verify/stream', { method: 'POST', headers: { 'content-type': 'application/json', ...(idempotencyKey ? { 'idempotency-key': idempotencyKey } : {}) }, body: JSON.stringify({ claim: claimText }), signal });
-  if (!r.ok || !r.body) throw new Error('stream unavailable');
+  if (!r.ok) { const err = new Error('stream unavailable'); err.status = r.status; throw err; }
+  if (!r.body) throw new Error('stream unavailable');
   const reader = r.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
@@ -75,7 +77,7 @@ export default function Home() {
   const [vaultCat, setVaultCat] = useState('all'); const [vaultQuery, setVaultQuery] = useState('');
   const [vaultSort, setVaultSort] = useState('recent'); const [vaultPage, setVaultPage] = useState(1);
   const [vaultNote, setVaultNote] = useState(''); const [batchBusy, setBatchBusy] = useState(false);
-  const abortRef = useRef(null); const fileInputRef = useRef(null); const dragCount = useRef(0);
+  const verifyAbortRef = useRef(null); const chatAbortRef = useRef(null); const fileInputRef = useRef(null); const dragCount = useRef(0);
   const claimBoxRef = useRef(null); const chatEndRef = useRef(null); const routeRef = useRef(null);
   const docsRef = useRef([]);
   docsRef.current = docs;
@@ -88,7 +90,7 @@ export default function Home() {
   }
   const historySearchRef = useRef(null);
   if (!historySearchRef.current) historySearchRef.current = createDebounced((q, v, w) => { void loadHistory(q, v, w); }, 300);
-  function cancelCheck() { abortRef.current?.abort(); }
+  function cancelCheck() { verifyAbortRef.current?.abort(); chatAbortRef.current?.abort(); }
   const claimLines = () => claim.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
   async function loadHistory(q = vaultQuery, v = histVerdict, w = histWorkflow) {
     try {
@@ -143,8 +145,15 @@ export default function Home() {
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
   useEffect(() => {
-    if (routeRef.current?.docId && applyRouteDoc(routeRef.current)) routeRef.current = null;
-  }, [docs]);
+    if (!loaded || !routeRef.current?.docId) return;
+    if (applyRouteDoc(routeRef.current)) routeRef.current = null;
+    else {
+      // A pasted link points at a doc that never loaded. Drop the pending
+      // route and fall back to the plain library hash so hash sync resumes.
+      routeRef.current = null;
+      window.history.replaceState(null, '', buildHash({ tab: 'library' }));
+    }
+  }, [docs, loaded]);
   useEffect(() => {
     if (routeRef.current) return; // a pasted link is still being applied
     const next = buildHash({ tab, tool, docId: tab === 'library' ? doc?.id : undefined, claimId: tab === 'library' && doc && selected && doc.claims?.some((c) => c.id === selected.id) ? selected.id : undefined });
@@ -180,14 +189,16 @@ export default function Home() {
       setDoc(null); setSelected(null); setResult(null); setBatchResults([]); setQueue([]);
       setChatMessages([]); setChatContext(null); setAssessDocId(''); setAssessResult(null);
       setResultPopup(null); setLibraryFocus(null); setViewerDoc(null); setInlineExpanded(false); setBatchExpanded({});
+      setDocs([]); setHistory([]); setContra([]); setContraErr(''); setVaultPage(1);
       await loadSafe();
+      await loadHistory();
     } catch { setErr('We could not reach the server. Check your connection and try again.'); }
   }
   async function verify() {
     const lines = claimLines();
     if (!lines.length || busy === 'verify') return;
     const controller = new AbortController();
-    abortRef.current = controller;
+    verifyAbortRef.current = controller;
     if (lines.length > 1) {
       setBusy('verify'); setErr(''); setLiveStages([]); setStreamNote(''); setBatchResults([]); setResult(null);
       setQueue(lines.map((text, i) => ({ text, state: i === 0 ? 'running' : 'waiting' })));
@@ -217,7 +228,7 @@ export default function Home() {
           setQueue(lines.map((text) => ({ text, state: 'failed' })));
           setErr('The check did not finish. Try again.');
         }
-      } finally { setBusy(''); abortRef.current = null; }
+      } finally { setBusy(''); verifyAbortRef.current = null; }
       return;
     }
     setBusy('verify'); setErr(''); setLiveStages([]); setStreamNote('');
@@ -239,11 +250,15 @@ export default function Home() {
         onProgress: (p) => setLiveStages((s) => [...s, p]),
         onVerdict: applyResult,
       });
-    } catch {
+    } catch (streamErr) {
       if (controller.signal.aborted) {
         setStreamNote('Check cancelled. Nothing was saved.');
         setAnnounce('Check cancelled.');
         setLiveStages([]);
+      } else if (!shouldFallbackAfterStreamError(streamErr)) {
+        // An HTTP error (e.g. 429) already spent the attempt. Falling back
+        // to the blocking check would burn quota a second time.
+        setErr(streamErr?.status === 429 ? 'Too many checks. Wait a minute and try again.' : 'The check failed. Try again.');
       } else {
         // Stream failed. Run the blocking check and say plainly that the
         // finished verdict arrived without live progress. Same key replays
@@ -260,29 +275,29 @@ export default function Home() {
           else setErr('The check did not finish. Try again.');
         }
       }
-    } finally { setBusy(''); abortRef.current = null; }
+    } finally { setBusy(''); verifyAbortRef.current = null; }
   }
   async function uploadFile(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const tooBig = uploadSizeError(file);
-    if (tooBig) { setErr(tooBig); if (e.target) e.target.value = ''; return; }
+    const classified = classifyUpload(file);
+    if (!classified.ok) { setErr(classified.error); if (e.target) e.target.value = ''; return; }
     setErr(''); setBusy('doc'); setUploadName(file.name);
     try {
       let d, r;
-      if (/\.(png|jpe?g|webp|gif)$/i.test(file.name)) {
+      if (classified.kind === 'image') {
         const fd = new FormData(); fd.append('file', file); fd.append('title', title || file.name);
         r = await fetch('/api/documents/image', { method: 'POST', body: fd }); d = await safeResponseJson(r);
-      } else if (/\.(mp3|wav|m4a|ogg|oga|opus|flac|aac)$/i.test(file.name)) {
+      } else if (classified.kind === 'audio') {
         const fd = new FormData(); fd.append('file', file); fd.append('title', title || file.name);
         r = await fetch('/api/documents/audio', { method: 'POST', body: fd }); d = await safeResponseJson(r);
-      } else if (/\.(mp4|mov|webm|mkv)$/i.test(file.name)) {
+      } else if (classified.kind === 'video') {
         const fd = new FormData(); fd.append('file', file); fd.append('title', title || file.name);
         r = await fetch('/api/documents/video', { method: 'POST', body: fd }); d = await safeResponseJson(r);
-      } else if (/\.pdf$/i.test(file.name)) {
+      } else if (classified.kind === 'pdf') {
         const fd = new FormData(); fd.append('file', file); fd.append('title', title || file.name);
         r = await fetch('/api/documents/pdf', { method: 'POST', body: fd }); d = await safeResponseJson(r);
-      } else if (/\.docx$/i.test(file.name)) {
+      } else if (classified.kind === 'docx') {
         const fd = new FormData(); fd.append('file', file); fd.append('title', title || file.name);
         r = await fetch('/api/documents/docx', { method: 'POST', body: fd }); d = await safeResponseJson(r);
       } else {
@@ -327,6 +342,7 @@ export default function Home() {
       if (!r.ok) return setErr(d.error || 'The check failed.');
       delete idemKeys.current[`verify:${c.id}`];
       setDoc(d.document); setSelected(d.claim); setTab('library');
+      try { const fresh = await (await fetch('/api/documents')).json().catch(() => ({})); if (fresh.documents) { setDocs(fresh.documents); const fd = fresh.documents.find((x) => x.id === d.document.id); if (fd) setDoc(fd); } } catch { /* the verdict is saved; a failed refresh must not call it failed */ }
     } catch { setErr('The check did not finish. Try again.'); } finally { setBusy(''); }
   }
   async function assess(targetDocId) {
@@ -382,7 +398,7 @@ export default function Home() {
   async function investigateChatClaim(text) {
     setBusy('chat'); setErr(''); setLiveStages([]);
     const controller = new AbortController();
-    abortRef.current = controller;
+    chatAbortRef.current = controller;
     const applyChatResult = (d) => {
       if (d.mode) setMode(d.mode);
       setChatMessages((m) => [...m, { role: 'verdict', result: d }]);
@@ -398,11 +414,13 @@ export default function Home() {
         onProgress: (p) => setLiveStages((s) => [...s, p]),
         onVerdict: applyChatResult,
       });
-    } catch {
+    } catch (chatErr) {
       if (controller.signal.aborted) {
         setChatMessages((m) => [...m, { role: 'note', text: 'Check cancelled. Nothing was saved.' }]);
         setAnnounce('Check cancelled.');
         setLiveStages([]);
+      } else if (!shouldFallbackAfterStreamError(chatErr)) {
+        setChatMessages((m) => [...m, { role: 'note', text: chatErr?.status === 429 ? 'Too many checks. Wait a minute and try again.' : 'That check failed. Try again.' }]);
       } else {
         try {
           const r = await fetch('/api/verify', { method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': chatKey }, body: JSON.stringify({ claim: text }), signal: controller.signal });
@@ -414,7 +432,7 @@ export default function Home() {
           else setChatMessages((m) => [...m, { role: 'note', text: 'That check did not complete. Try again.' }]);
         }
       }
-    } finally { setBusy(''); abortRef.current = null; }
+    } finally { setBusy(''); chatAbortRef.current = null; }
   }
   async function runChatChallenge(kind, customText = '') {
     if (!chatContext) return;
@@ -431,14 +449,14 @@ export default function Home() {
   }
   async function sendChat() {
     const text = chatText.trim();
-    if (!text || busy) return;
+    if (!text || busy === 'chat' || busy === 'challenge') return;
     setChatMessages((m) => [...m, { role: 'user', text }]);
     setChatText('');
     if (chatContext) await runChatChallenge('custom', text);
     else await investigateChatClaim(text);
   }
   async function askSuggestion(s) {
-    if (!s || busy) return;
+    if (!s || busy === 'chat' || busy === 'challenge') return;
     setChatMessages((m) => [...m, { role: 'user', text: s.question }]);
     await investigateChatClaim(s.investigateAs);
   }
@@ -838,7 +856,7 @@ export default function Home() {
               <div data-upload>
                 {dossierDoc && <p><button type="button" className="btn secondary" onClick={() => setShowUpload(false)}><Icon name="back" />Back to dossier</button></p>}
                 <p className="small">Add one file: a document (PDF, DOCX, TXT, MD), an image (PNG, JPG, WebP, GIF), audio (MP3, WAV, M4A, OGG, FLAC), or video (MP4, MOV, WebM, MKV). We pull out the text, find its claims, and check the important ones first. It goes to the Library.</p>
-                <label className={dragging ? 'dropzone dragging' : 'dropzone'} data-upload-drop role="button" tabIndex={0} aria-label="Upload a file. Press Enter to browse, or drop a file here." onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && busy !== 'doc') { e.preventDefault(); fileInputRef.current?.click(); } }} onDragEnter={(e) => { e.preventDefault(); dragCount.current += 1; setDragging(true); }} onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => { dragCount.current -= 1; if (dragCount.current <= 0) { dragCount.current = 0; setDragging(false); } }} onDrop={(e) => { e.preventDefault(); dragCount.current = 0; setDragging(false); void uploadFile({ target: { files: e.dataTransfer.files } }); }} onPaste={(e) => { if (e.clipboardData?.files?.length) { e.preventDefault(); void uploadFile({ target: { files: e.clipboardData.files } }); } }}>
+                <div className={dragging ? 'dropzone dragging' : 'dropzone'} data-upload-drop role="button" tabIndex={0} aria-label="Upload a file. Press Enter to browse, or drop a file here." onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && busy !== 'doc') { e.preventDefault(); fileInputRef.current?.click(); } }} onDragEnter={(e) => { e.preventDefault(); dragCount.current += 1; setDragging(true); }} onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => { dragCount.current -= 1; if (dragCount.current <= 0) { dragCount.current = 0; setDragging(false); } }} onDrop={(e) => { e.preventDefault(); dragCount.current = 0; setDragging(false); void uploadFile({ target: { files: e.dataTransfer.files } }); }} onPaste={(e) => { if (e.clipboardData?.files?.length) { e.preventDefault(); void uploadFile({ target: { files: e.clipboardData.files } }); } }}>
                   <span className="format-icon drop-icon"><Icon name="upload" /></span>
                   <strong className="drop-title">{busy === 'doc' ? `Uploading${uploadName ? ` ${uploadName}` : ''}. Finding claims…` : dragging ? 'Drop to upload' : 'Drag & drop your file here'}</strong>
                   <span className="small">Or press Enter to browse. You can paste a file here too. For images, we first write what they show. For audio and video, we first write down the speech. Then we find claims.</span>
@@ -846,7 +864,7 @@ export default function Home() {
                   <span className="btn drop-browse"><Icon name="upload" />Browse files</span>
                   <span className="small">PDF and DOCX up to 15 MB · Images up to 10 MB · Audio up to 50 MB and 10 minutes · Video up to 100 MB and 10 minutes</span>
                   <input ref={fileInputRef} className="file-hidden" type="file" accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.webp,.gif,.mp3,.wav,.m4a,.ogg,.oga,.opus,.flac,.aac,.mp4,.mov,.webm,.mkv,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*,audio/*,video/*" onChange={uploadFile} disabled={busy === 'doc'} />
-                </label>
+                </div>
                 <p className="small">Muse Spark describes images. Muse Voice Transcribe writes down speech in audio and video. We check that text like a book.</p>
                 <p className="small">Or paste text:</p>
                 <input type="text" placeholder="File title" value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -970,7 +988,7 @@ export default function Home() {
                       <span className="vault-badge">{badge}</span>
                     </div>
                     <button type="button" className="vault-card-title" onClick={() => { setDoc(d); setSelected(null); }} aria-label={`Open claims for ${d.title}`}>
-                      <h3>{d.title}</h3><span className="vault-tag">{tag}</span>
+                      <span className="vault-card-title-text">{d.title}</span><span className="vault-tag">{tag}</span>
                     </button>
                     <p className="small vault-blurb">{blurb}</p>
                     <div className="vault-card-meta">
@@ -1015,7 +1033,8 @@ export default function Home() {
           {!shown && <div className="doc-main">
         {doc && doc.kind !== 'history' && (
           <section><div className="rule" /><h2>{doc.title}</h2>
-            {doc.kind === 'website' && doc.sourceUrl && <p className="small">From a website. <a href={doc.sourceUrl} target="_blank" rel="noreferrer">Open the first page</a></p>}
+            {doc.kind === 'website' && safeHttpUrl(doc.sourceUrl) && <p className="small">From a website. <a href={safeHttpUrl(doc.sourceUrl)} target="_blank" rel="noreferrer">Open the first page</a></p>}
+            {doc.kind === 'website' && doc.sourceUrl && !safeHttpUrl(doc.sourceUrl) && <p className="small">From a website.</p>}
             {doc.kind === 'image' && doc.media?.caption && <p className="small">What the image shows, by Muse Spark: “{doc.media.caption}”</p>}
             {(doc.kind === 'video' || doc.kind === 'audio') && doc.media?.transcript && <p className="small">Transcript: {doc.media.transcript}</p>}
             <p className="small">{doc.status === 'verifying' ? 'We are checking key claims now. You can also check claims below.' : doc.status === 'paused' ? 'Auto-check is paused.' : 'Auto-check is done.'} {doc.report ? `${doc.report.autoVerified ?? 0} checked by us · ${doc.report.readerInvestigated ?? 0} checked by you · ${doc.report.notYetVerified ?? 0} not checked yet.` : ''}</p>
@@ -1053,12 +1072,12 @@ export default function Home() {
             {doc.kind !== 'website' && doc.claims.length > 0 && visibleClaims.length === 0 && <p className="small">No claims match that search. Clear the search to see all {doc.claims.length} claims.</p>}
             {doc.kind !== 'website' && visibleClaims.map((c) => c.status === 'verified' || !c.status ? (
               <button className="claim" data-claim-row data-selected={selected?.id === c.id ? 'true' : 'false'} aria-current={selected?.id === c.id ? 'true' : undefined} key={c.id} onClick={() => setSelected(c)}>
-                <span>{c.text}<br /><span className="small">{doc.kind === 'website' ? 'Web page' : doc.kind === 'image' ? 'Caption' : (doc.kind === 'video' || doc.kind === 'audio') ? `Segment ${c.page}` : `Page${(c.pages?.length > 1) ? 's ' + c.pages.join(', ') : ' ' + c.page}`} · {c.type} · Checked by {c.judgedBy}{c.source === 'reader-submitted' ? ' · Asked by you' : c.source === 'reader-pick' ? ' · Checked by you' : ''}{c.internalContradiction ? ' · This file disagrees with itself here' : ''}</span></span>
+                <span>{c.text}<br /><span className="small">{doc.kind === 'website' ? 'Web page' : doc.kind === 'image' ? 'Caption' : (doc.kind === 'video' || doc.kind === 'audio') ? `Segment ${c.page}` : pageLabel(c)} · {c.type} · Checked by {c.judgedBy}{c.source === 'reader-submitted' ? ' · Asked by you' : c.source === 'reader-pick' ? ' · Checked by you' : ''}{c.internalContradiction ? ' · This file disagrees with itself here' : ''}</span></span>
                 <span className={cls(c.verdict)}>{c.verdict}</span>
               </button>
             ) : (
               <div className="claim" data-claim-row data-selected="false" key={c.id}>
-                <span>{c.text}<br /><span className="small">{doc.kind === 'website' ? 'Web page' : doc.kind === 'image' ? 'Caption' : (doc.kind === 'video' || doc.kind === 'audio') ? `Segment ${c.page}` : `Page${(c.pages?.length > 1) ? 's ' + c.pages.join(', ') : ' ' + c.page}`} · {c.type}</span></span>
+                <span>{c.text}<br /><span className="small">{doc.kind === 'website' ? 'Web page' : doc.kind === 'image' ? 'Caption' : (doc.kind === 'video' || doc.kind === 'audio') ? `Segment ${c.page}` : pageLabel(c)} · {c.type}</span></span>
                 <span><span className="stamp v-Unverifiable">{c.status === 'pending' ? 'Verifying…' : 'Not checked yet'}</span>{' '}<button className="btn secondary" onClick={() => verifyClaim(c)} disabled={busy === 'claim'}><Icon name="verify" />Verify this claim</button></span>
               </div>
             ))}
@@ -1272,7 +1291,7 @@ export default function Home() {
                 <textarea id="debate-composer-input" value={chatText} onChange={(e) => setChatText(e.target.value)} aria-label={chatContext ? 'Your question' : 'A claim to check'} rows={3} placeholder={chatContext ? 'Or describe your own challenge…' : 'Type any claim. For example: Humans only use 10% of their brains.'} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void sendChat(); } }} />
                 <MicButton variant="inline" label="Dictate a claim or follow-up" onText={(tx) => setChatText((prev) => (prev.trim() ? `${prev.trim()} ${tx}` : tx))} />
               </div>
-              <p><button className="btn" onClick={() => void sendChat()} disabled={!chatText.trim() || !!busy}><Icon name="verify" />{busy === 'chat' || busy === 'challenge' ? 'Checking…' : 'Inject counter-evidence'}</button>{' '}<span className="small">{chatContext ? 'We will run this as a follow-up check on the claim above.' : 'We will check this as a new claim. Press Enter to send.'}</span></p>
+              <p><button className="btn" onClick={() => void sendChat()} disabled={!chatText.trim() || busy === 'chat' || busy === 'challenge'}><Icon name="verify" />{busy === 'chat' || busy === 'challenge' ? 'Checking…' : 'Inject counter-evidence'}</button>{' '}<span className="small">{chatContext ? 'We will run this as a follow-up check on the claim above.' : 'We will check this as a new claim. Press Enter to send.'}</span></p>
             </div>
           </section>
         )}
@@ -1370,7 +1389,7 @@ export default function Home() {
               <h2>{viewerDoc.title}</h2>
               <button type="button" className="btn secondary" onClick={() => setViewerDoc(null)} aria-label="Close document viewer"><Icon name="close" />Close</button>
             </div>
-            <p className="small">{viewerDoc.kind === 'website' && viewerDoc.sourceUrl ? <>Website · <a href={viewerDoc.sourceUrl} target="_blank" rel="noreferrer">Open the first page</a></> : viewerDoc.kind === 'image' ? 'Image · text by Muse Spark' : viewerDoc.kind === 'video' ? 'Video · text by Muse Voice Transcribe and Muse Spark' : viewerDoc.kind === 'audio' ? 'Audio · text by Muse Voice Transcribe' : viewerDoc.media?.file?.mime === 'application/pdf' ? 'PDF document' : viewerDoc.media?.file?.ext === 'docx' ? 'Word document (DOCX)' : 'Book or pasted text'} This is the file as you added it. Claims and answers are in the Library.</p>
+            <p className="small">{viewerDoc.kind === 'website' ? (safeHttpUrl(viewerDoc.sourceUrl) ? <>Website · <a href={safeHttpUrl(viewerDoc.sourceUrl)} target="_blank" rel="noreferrer">Open the first page</a></> : 'Website') : viewerDoc.kind === 'image' ? 'Image · text by Muse Spark' : viewerDoc.kind === 'video' ? 'Video · text by Muse Voice Transcribe and Muse Spark' : viewerDoc.kind === 'audio' ? 'Audio · text by Muse Voice Transcribe' : viewerDoc.media?.file?.mime === 'application/pdf' ? 'PDF document' : viewerDoc.media?.file?.ext === 'docx' ? 'Word document (DOCX)' : 'Book or pasted text'} This is the file as you added it. Claims and answers are in the Library.</p>
             {viewerDoc.kind === 'image' && viewerDoc.media?.file && <img className="viewer-media" src={`/api/documents/${viewerDoc.id}/media`} alt={viewerDoc.title} loading="lazy" decoding="async" />}
             {viewerDoc.kind === 'image' && !viewerDoc.media?.file && <p className="small">We did not keep this image file. Below is the text Muse Spark wrote about it. Add the image again to see it here.</p>}
             {viewerDoc.kind === 'video' && viewerDoc.media?.file && <video className="viewer-media" src={`/api/documents/${viewerDoc.id}/media`} controls preload="metadata" aria-label={`Video: ${viewerDoc.title}`} />}
@@ -1379,7 +1398,7 @@ export default function Home() {
             {viewerDoc.kind === 'audio' && !viewerDoc.media?.file && <p className="small">We did not keep this audio file. Below is its transcript. Add the audio again to listen here.</p>}
             {viewerDoc.media?.file?.mime === 'application/pdf' && <iframe className="viewer-frame" src={`/api/documents/${viewerDoc.id}/media`} title={`PDF: ${viewerDoc.title}`} sandbox="allow-same-origin" loading="lazy" referrerPolicy="no-referrer" />}
             {viewerDoc.media?.file && viewerDoc.media.file.ext === 'docx' && <p><a className="btn secondary" href={`/api/documents/${viewerDoc.id}/media`} download={viewerDoc.media.file.originalName || 'document.docx'}><Icon name="download" />Download the DOCX file</a>{' '}<span className="small">Your browser cannot show a DOCX file here. Its text is below.</span></p>}
-            {viewerDoc.kind === 'website' && viewerDoc.sourceUrl && <><iframe className="viewer-frame" src={viewerDoc.sourceUrl} title={`Website: ${viewerDoc.title}`} sandbox="allow-same-origin allow-popups" loading="lazy" referrerPolicy="no-referrer" /><p className="small">If this stays blank, the site blocks it. Use "Open the first page" above. The text we loaded is below.</p></>}
+            {viewerDoc.kind === 'website' && safeHttpUrl(viewerDoc.sourceUrl) && <><iframe className="viewer-frame" src={viewerDoc.sourceUrl} title={`Website: ${viewerDoc.title}`} sandbox="allow-same-origin allow-popups" loading="lazy" referrerPolicy="no-referrer" /><p className="small">If this stays blank, the site blocks it. Use "Open the first page" above. The text we loaded is below.</p></>}
             {!viewerBusy && viewerDoc.contentPages?.length > 0 && <h3>Text we read from it</h3>}
             {viewerBusy && <p className="small" role="status">Loading the file…</p>}
             {viewerDoc.viewerError && <p className="error" role="alert">{viewerDoc.viewerError}</p>}

@@ -1,6 +1,12 @@
 import { liveStatus, getModels } from '../../../../lib/meta.mjs';
 import { suggestFollowups, localSuggestions } from '../../../../lib/suggest.mjs';
 import { authEnabled, requestUser } from '../../../../lib/auth.mjs';
+import { createBoundedLimiter, clientIp } from '../../../../lib/rate-limit.mjs';
+
+const suggestLimiter = createBoundedLimiter({ windowMs: 60 * 1000, maxHits: 30, maxKeys: 1000 });
+export function suggestRateLimited(key) {
+  return suggestLimiter.check(key);
+}
 
 // Follow-up suggestions for one finished verdict. Live deployments ask
 // Muse Spark to reason over the claim and its passages. When Meta calls
@@ -8,6 +14,8 @@ import { authEnabled, requestUser } from '../../../../lib/auth.mjs';
 // derived questions are returned and labelled source: 'local'.
 export async function POST(req) {
   if (authEnabled() && !requestUser(req)) return Response.json({ error: 'Sign in first.' }, { status: 401 });
+  const ip = clientIp(req);
+  if (suggestRateLimited(`suggest:${ip}`)) return Response.json({ error: 'Too many suggestion requests. Wait a minute and try again.' }, { status: 429, headers: { 'Retry-After': '60' } });
   const body = await req.json().catch(() => ({}));
   const result = body.result || {};
   if (!String(result.text || '').trim() || !String(result.verdict || '').trim()) {

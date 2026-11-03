@@ -4,6 +4,7 @@ import { verifyResearchedClaim } from '../../../../lib/research.mjs';
 import { CONFIG } from '../../../../lib/config.mjs';
 import { recordInvestigation, findHistoryByKey, replayModeLabel } from '../../../../lib/history.mjs';
 import { authEnabled, requestUser } from '../../../../lib/auth.mjs';
+import { createBoundedLimiter, clientIp, bodyTooLarge, originCheckFailed } from '../../../../lib/rate-limit.mjs';
 
 
 
@@ -22,8 +23,17 @@ async function remember(req, result, idempotencyKey) {
   }
 }
 
+const streamLimiter = createBoundedLimiter({ windowMs: 60 * 1000, maxHits: 30, maxKeys: 1000 });
+export function streamRateLimited(key) {
+  return streamLimiter.check(key);
+}
+
 export async function POST(req) {
+  if (bodyTooLarge(req)) return Response.json({ error: 'Request body is too large.' }, { status: 413 });
+  if (originCheckFailed(req)) return Response.json({ error: 'Origin check failed.' }, { status: 403 });
   if (authEnabled() && !requestUser(req)) return Response.json({ error: 'Sign in first.' }, { status: 401 });
+  const ip = clientIp(req);
+  if (streamRateLimited(`stream:${ip}`)) return Response.json({ error: 'Too many checks. Wait a minute and try again.' }, { status: 429, headers: { 'Retry-After': '60' } });
   const { claim } = await req.json().catch(() => ({}));
   if (typeof claim !== 'string' || !claim.trim()) return Response.json({ error: 'Enter a claim first.' }, { status: 400 });
   const text = claim.trim();
@@ -63,7 +73,10 @@ export async function POST(req) {
           send({ kind: 'verdict', result: await remember(req, { ...live, models: getModels() }, idempotencyKey) });
         }
       } catch (err) {
-        send({ kind: 'error', error: err?.message || 'Verification failed.' });
+        // Raw error text (paths, provider bodies) stays in the server log;
+        // the SSE client gets a generic message that names no internals.
+        console.error('[truthlens] verify stream failed:', String(err?.message || err || 'unknown error').slice(0, 2000));
+        send({ kind: 'error', error: 'Verification failed. Try again.' });
       } finally {
         try { controller.close(); } catch { /* already closed */ }
       }

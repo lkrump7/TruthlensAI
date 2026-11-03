@@ -4,7 +4,8 @@ import { verifyResearchedClaim } from '../../../lib/research.mjs';
 import { CONFIG } from '../../../lib/config.mjs';
 import { recordInvestigation, findHistoryByKey, replayModeLabel } from '../../../lib/history.mjs';
 import { authEnabled, requestUser } from '../../../lib/auth.mjs';
-import { createBoundedLimiter, clientIp } from '../../../lib/rate-limit.mjs';
+import { createBoundedLimiter, clientIp, bodyTooLarge, originCheckFailed } from '../../../lib/rate-limit.mjs';
+import { liveFailedResult } from '../../../lib/errors.mjs';
 
 async function remember(req, result, idempotencyKey) {
   try {
@@ -23,6 +24,8 @@ export function verifyRateLimited(key) {
 }
 
 export async function POST(req) {
+  if (bodyTooLarge(req)) return Response.json({ error: 'Request body is too large.' }, { status: 413 });
+  if (originCheckFailed(req)) return Response.json({ error: 'Origin check failed.' }, { status: 403 });
   if (authEnabled() && !requestUser(req)) return Response.json({ error: 'Sign in first.' }, { status: 401 });
   const ip = clientIp(req);
   if (verifyRateLimited(`verify:${ip}`)) return Response.json({ error: 'Too many checks. Wait a minute and try again.' }, { status: 429, headers: { 'Retry-After': '60' } });
@@ -58,7 +61,6 @@ export async function POST(req) {
     }
   } catch (err) {
     if (err?.code === 'idempotency-conflict') return Response.json({ error: err.message }, { status: 409 });
-    console.error('[truthlens] live research failed:', err);
-    return Response.json(await remember(req, { text, type: 'Scientific', verdict: 'Unverifiable', judgedBy: 'Muse Spark 1.3', supporting: [], contradicting: [], mode: 'live-failed', models: getModels(), explanation: 'Live research failed, so no verdict was produced rather than falling back to a canned one.', limitations: ['Live research failed. Retry the claim.'] }, idempotencyKey));
+    return Response.json(await remember(req, { ...liveFailedResult(text, err, { type: 'Scientific' }), models: getModels() }, idempotencyKey));
   }
 }

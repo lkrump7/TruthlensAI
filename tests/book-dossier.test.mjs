@@ -1,6 +1,25 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { dossierBuckets, chapterIndexForPage, filterDossierClaims } from '../lib/ui-state.mjs';
+
+const dossierSrc = readFileSync(new URL('../app/components/book-dossier.js', import.meta.url), 'utf8');
+
+// The dossier component ships JSX, which node:test cannot import, so the
+// pure helpers live in a marked dependency-free block that the tests below
+// extract and run. This executes the shipped code, not a copy of it.
+function loadDossierHelpers() {
+  const start = dossierSrc.indexOf('// dossier-pure-helpers:start');
+  const end = dossierSrc.indexOf('// dossier-pure-helpers:end');
+  assert.ok(start !== -1 && end !== -1 && end > start, 'book-dossier keeps an extractable pure-helper block');
+  const block = dossierSrc
+    .slice(start, end)
+    .split('\n')
+    .filter((line) => !line.includes('dossier-pure-helpers:'))
+    .map((line) => line.replace(/^export\s+/, ''))
+    .join('\n');
+  return new Function(`${block}\nreturn { dossierWordDisplay, dossierDocId, serializeClaimCitations };`)();
+}
 
 const claims8 = [
   { id: 'c1', text: 'Gamma synchrony underlies perception.', verdict: 'Supported', page: 14 },
@@ -61,4 +80,77 @@ test('filterDossierClaims narrows by verdict bucket and chapter together', () =>
   assert.deepEqual(filterDossierClaims(claims8, { bucket: 'contradicted', chapter: 5, totalPages: 312 }).map((c) => c.id),
     []);
   assert.deepEqual(filterDossierClaims(null, { bucket: 'all', chapter: 'all' }), []);
+});
+
+test('dossier word display estimates honestly when the doc carries no real count', () => {
+  const { dossierWordDisplay } = loadDossierHelpers();
+  const claims = Array.from({ length: 8 }, (_, i) => ({ id: `c${i + 1}`, text: `Claim ${i + 1}.`, verdict: 'Supported' }));
+  assert.deepEqual(dossierWordDisplay({ id: 'doc-1', title: 'Demo', pages: 312 }, claims), { text: '1,120', estimated: true });
+});
+
+test('dossier word display prefers real document text over the claims-based estimate', () => {
+  const { dossierWordDisplay } = loadDossierHelpers();
+  assert.deepEqual(
+    dossierWordDisplay({ id: 'doc-2', title: 'Real', sourcePages: [{ page: 1, text: 'one two three four' }] }, [{ id: 'c1', text: 'x' }]),
+    { text: '4', estimated: false },
+  );
+  assert.deepEqual(
+    dossierWordDisplay({ id: 'doc-2b', title: 'Stored', pages: 10, wordCount: 4242 }, [{ id: 'c1', text: 'x' }]),
+    { text: '4,242', estimated: false },
+  );
+});
+
+test('dossier word display reports zero without inventing words for an empty corpus', () => {
+  const { dossierWordDisplay } = loadDossierHelpers();
+  assert.deepEqual(dossierWordDisplay({ id: 'doc-3', title: 'Empty', pages: 0 }, []), { text: '0', estimated: false });
+});
+
+test('dossier doc id shows a short id and never a hash label', () => {
+  const { dossierDocId } = loadDossierHelpers();
+  assert.equal(dossierDocId({ id: 'doc-1234567890abcdef' }), 'doc-12345678…');
+  assert.equal(dossierDocId({ id: 'doc-7' }), 'doc-7');
+  assert.equal(dossierDocId({}), 'untitled');
+});
+
+test('serializeClaimCitations keeps checked claims with their citations', () => {
+  const { serializeClaimCitations } = loadDossierHelpers();
+  const parsed = JSON.parse(serializeClaimCitations({ id: 'doc-9', title: 'Mind' }, [
+    { id: 'c1', text: 'Gamma matters.', verdict: 'Supported', judgedBy: 'Muse Spark 1.3', page: 14, supporting: [{ title: 'T', source: 'J', passage: 'p' }], contradicting: [] },
+    { id: 'c2', text: 'Unchecked.', verdict: null },
+    { id: 'c3', text: 'Wrong.', verdict: 'Contradicted', judgedBy: 'Muse Wonder', page: 72, supporting: [], contradicting: [{ title: 'U', source: 'K', passage: 'q' }] },
+  ]));
+  assert.equal(parsed.docId, 'doc-9');
+  assert.equal(parsed.title, 'Mind');
+  assert.ok(typeof parsed.exportedAt === 'string' && parsed.exportedAt.length > 0);
+  assert.equal(parsed.claims.length, 2);
+  assert.equal(parsed.claims[0].id, 'c1');
+  assert.equal(parsed.claims[0].supporting.length, 1);
+  assert.equal(parsed.claims[1].verdict, 'Contradicted');
+  assert.equal(parsed.claims[1].contradicting.length, 1);
+});
+
+test('claim citations button downloads client-side JSON instead of the markdown export', () => {
+  const line = dossierSrc.split('\n').find((l) => l.includes('Claim Citations JSON'));
+  assert.ok(line, 'citations button still exists');
+  assert.ok(line.includes('serializeClaimCitations'), 'citations button serializes JSON on the client');
+  assert.ok(line.includes('.json'), 'citations download names a JSON file');
+  assert.ok(!line.includes('onExportClaim'), 'citations button no longer calls the markdown export');
+  const reportLine = dossierSrc.split('\n').find((l) => l.includes('Export Section Report'));
+  assert.ok(reportLine && reportLine.includes('onExportClaim'), 'section report button keeps the markdown export');
+});
+
+test('dossier never shows a fabricated hash or an unlabelled estimate', () => {
+  assert.ok(!dossierSrc.includes('SHA-256'), 'no fabricated hash label in the dossier');
+  assert.ok(!dossierSrc.includes('b84c'), 'no hardcoded hash suffix in the dossier');
+  assert.ok(dossierSrc.includes('Doc ID:'), 'dossier shows an honest doc id');
+  assert.ok(dossierSrc.includes('(estimate)'), 'estimates are labelled as estimates');
+});
+
+test('page bins read as sections, never real chapters', () => {
+  for (const leftover of ['Chapter Heatmap', 'All Chapters', 'Chapter {', 'Ch {', 'per chapter', 'by chapter', 'Chapter Report']) {
+    assert.ok(!dossierSrc.includes(leftover), `no chapter label remains: ${leftover}`);
+  }
+  for (const marker of ['All Sections', 'Section Heatmap', 'Filter by section', 'Claims per section', 'Section {c.idx}', 'Section {chIdx}', 'Sec {c.idx}']) {
+    assert.ok(dossierSrc.includes(marker), marker);
+  }
 });

@@ -461,7 +461,8 @@ test('redesign: supporting versus contradicting evidence shows real counts and c
   assert.match(page, /supporting\.length/, 'supporting count comes from real evidence');
   assert.match(page, /contradicting\.length/, 'contradicting count comes from real evidence');
   assert.ok(page.includes('data-evidence-card'), 'evidence card anchor present');
-  assert.match(page, /<a href=\{e\.url\}/, 'evidence card still links to its source');
+  assert.match(page, /safeHttpUrl\(e\.url\)/, 'evidence link is scheme-gated');
+  assert.match(page, /<a href=\{href\}/, 'evidence card still links to its source');
 });
 
 test('redesign: demo claims are one-click and upload is a drop target', () => {
@@ -781,7 +782,7 @@ test('empty paste is refused on the page, not only by the server', () => {
 });
 
 test('oversize uploads are refused before the request is sent', () => {
-  assert.ok(page.includes('uploadSizeError(file)'), 'upload checks the file size up front');
+  assert.ok(page.includes('classifyUpload(file)'), 'upload checks the file size up front');
 });
 
 test('deleting a file clears assess and chat pointers to it', () => {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-function encodeWav(samples, sampleRate) {
+export function encodeWav(samples, sampleRate) {
   const buffer = new ArrayBuffer(44 + samples.length * 2);
   const view = new DataView(buffer);
   const writeStr = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
@@ -12,11 +12,17 @@ function encodeWav(samples, sampleRate) {
   for (let i = 0; i < samples.length; i++, off += 2) { const s = Math.max(-1, Math.min(1, samples[i])); view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true); }
   return new Blob([view], { type: 'audio/wav' });
 }
-function resampleTo(samples, fromRate, toRate) {
+export function resampleTo(samples, fromRate, toRate) {
   if (fromRate === toRate) return samples;
   const ratio = fromRate / toRate;
   const out = new Float32Array(Math.floor(samples.length / ratio));
-  for (let i = 0; i < out.length; i++) out[i] = samples[Math.floor(i * ratio)];
+  for (let i = 0; i < out.length; i++) {
+    const start = Math.floor(i * ratio);
+    const end = Math.min(Math.max(start + 1, Math.floor((i + 1) * ratio)), samples.length);
+    let sum = 0;
+    for (let j = start; j < end; j++) sum += samples[j];
+    out[i] = end > start ? sum / (end - start) : 0;
+  }
   return out;
 }
 export function MicButton({ onText, label = 'Dictate', variant = 'button' }) {
@@ -31,12 +37,12 @@ export function MicButton({ onText, label = 'Dictate', variant = 'button' }) {
     const r = rec.current;
     if (!r) return;
     rec.current = null;
-    try { r.processor.disconnect(); r.source.disconnect(); } catch { /* already closed */ }
+    try { r.processor.disconnect(); r.source.disconnect(); r.silent?.disconnect(); } catch { /* already closed */ }
     r.stream.getTracks().forEach((t) => t.stop());
     r.ctx.close().catch(() => {});
   }, []);
   async function start() {
-    if (state === 'listening' || state === 'working') return;
+    if (rec.current) return;
     setNote('');
     if (!navigator?.mediaDevices?.getUserMedia || typeof AudioContext === 'undefined') return setNote('This browser cannot record your voice. Please type.');
     try {
@@ -46,8 +52,13 @@ export function MicButton({ onText, label = 'Dictate', variant = 'button' }) {
       const processor = ctx.createScriptProcessor(4096, 1, 1);
       const frames = [];
       processor.onaudioprocess = (e) => frames.push(new Float32Array(e.inputBuffer.getChannelData(0)));
-      source.connect(processor); processor.connect(ctx.destination);
-      rec.current = { stream, ctx, processor, source, frames, rate: ctx.sampleRate };
+      // ScriptProcessorNodes only fire when connected downstream, but routing
+      // the live mic to the speakers feeds back. A zero-gain node keeps the
+      // callback alive while staying silent.
+      const silent = ctx.createGain();
+      silent.gain.value = 0;
+      source.connect(processor); processor.connect(silent); silent.connect(ctx.destination);
+      rec.current = { stream, ctx, processor, source, silent, frames, rate: ctx.sampleRate };
       setState('listening');
       if (stopTimer.current) clearTimeout(stopTimer.current);
       stopTimer.current = setTimeout(() => { stopTimer.current = null; void stop(); }, 60000);
@@ -59,9 +70,9 @@ export function MicButton({ onText, label = 'Dictate', variant = 'button' }) {
     // so a state check here would no-op the timer every time.
     if (!rec.current) return;
     if (stopTimer.current) { clearTimeout(stopTimer.current); stopTimer.current = null; }
-    const { stream, ctx, processor, source, frames, rate } = rec.current;
+    const { stream, ctx, processor, source, silent, frames, rate } = rec.current;
     rec.current = null;
-    try { processor.disconnect(); source.disconnect(); } catch { /* already closed */ }
+    try { processor.disconnect(); source.disconnect(); silent?.disconnect(); } catch { /* already closed */ }
     stream.getTracks().forEach((t) => t.stop());
     const total = frames.reduce((n, c) => n + c.length, 0);
     const merged = new Float32Array(total);
@@ -84,7 +95,7 @@ export function MicButton({ onText, label = 'Dictate', variant = 'button' }) {
     } finally { transcribeAbort.current = null; setState('idle'); }
   }
   const hold = {
-    onPointerDown: (e) => { e.preventDefault(); start(); },
+    onPointerDown: (e) => { e.preventDefault(); try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* no capture */ } start(); },
     onPointerUp: stop,
     onPointerCancel: stop,
     onPointerLeave: () => { if (state === 'listening') stop(); },

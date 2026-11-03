@@ -251,8 +251,12 @@ test('challenge route validates kind and 404s unknown claims', async () => {
 test('pause halts the automatic pass and resume finishes it', async () => {
   const doc = await createDocument({ title: 'Pause Book', owner: 'reader', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
   await whenAutoVerificationDone(doc.id);
-  const claim = doc.claims[0];
+  // The repository has copy semantics: reset the claim on a fresh copy and
+  // persist it, so the next pass sees a pending claim.
+  const reset = await getDocument(doc.id);
+  const claim = reset.claims[0];
   claim.status = 'pending'; claim.autoSelected = true; delete claim.verdict;
+  await repository().save(reset);
   await setAutoPaused(doc.id, true);
   await startAutoVerification(await getDocument(doc.id));
   assert.equal((await getDocument(doc.id)).claims[0].status, 'pending');

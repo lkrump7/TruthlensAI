@@ -667,7 +667,7 @@ html[data-theme="light"] .tone-slate{color:#475569;border-color:var(--line);back
 .vault-ic.k-video{color:var(--amber)}
 .vault-badge{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);background:var(--surface3);border-radius:6px;padding:4px 8px;white-space:nowrap}
 .vault-card-title{background:none;border:0;padding:0;text-align:left;display:flex;align-items:center;gap:8px;flex-wrap:wrap;cursor:pointer}
-.vault-card-title h3{margin:0;font-size:17px;font-family:var(--font-display)}
+.vault-card-title h3, .vault-card-title-text{margin:0;font-size:17px;font-family:var(--font-display)}
 .vault-tag{font-size:10px;font-weight:700;letter-spacing:.04em;background:rgba(78,222,163,.14);color:var(--teal);border-radius:6px;padding:3px 8px}
 .vault-blurb{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin:0}
 .vault-card-meta{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--mut);font-weight:600}

@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Icon } from './icons.js';
 import { GaugeRing, StanceBar } from './forensic.js';
+import { safeHttpUrl } from '../../lib/ui-state.mjs';
 
 export const cls = (v) => `stamp v-${String(v).replaceAll(' ', '-')}`;
 function EvidenceCard({ e, stance }) {
   const [copyNote, setCopyNote] = useState('');
+  const href = safeHttpUrl(e.url);
   async function copyCitation() {
     const citation = `"${e.passage}" (${e.title}, ${e.source} ${e.date}${e.url ? `, ${e.url}` : ''})`;
     try {
@@ -17,7 +19,7 @@ function EvidenceCard({ e, stance }) {
       <div className="meta">{e.source} · {e.date}{stance && <span className="stance">{stance}</span>}</div>
       <h3>{e.title}</h3><p>“{e.passage}”</p>
       <p className="ev-actions">
-        {e.url ? <a href={e.url} className="ev-link" target="_blank" rel="noreferrer">Open source</a> : <span className="small">No link for this source.</span>}{' '}
+        {href ? <a href={href} className="ev-link" target="_blank" rel="noreferrer">Open source</a> : <span className="small">No link for this source.</span>}{' '}
         <button type="button" className="btn secondary ev-copy" onClick={copyCitation}><Icon name="copy" />{copyNote === 'Copied' ? 'Copied' : 'Copy citation'}</button>
         {copyNote && copyNote !== 'Copied' && <span className="small" role="status"> {copyNote}</span>}
       </p>
@@ -26,7 +28,7 @@ function EvidenceCard({ e, stance }) {
 }
 export function Evidence({ items, empty, stance }) {
   if (!items?.length) return <p className="small">{empty}</p>;
-  return items.map((e) => <EvidenceCard e={e} stance={stance} key={e.id} />);
+  return items.map((e, i) => <EvidenceCard e={e} stance={stance} key={e.id || e.url || i} />);
 }
 const STAGE_LABELS = {
   triage: 'Looked at the claim',
@@ -126,7 +128,7 @@ export async function downloadReport(docId, claimId) {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
   return true;
 }
 export function VerdictSummary({ r, onOpenRecord }) {
@@ -224,7 +226,7 @@ export function VerdictView({ r, docId, hideDownload, onRerun, onExport, onDebat
   const total = sup + con + amb;
   const decided = sup + con;
   const top = Math.max(sup, con);
-  const alignPct = total ? Math.round((top / total) * 100) : 0;
+  const alignPct = decided ? Math.round((top / decided) * 100) : 0;
   const tone = toneFor(r.verdict);
   const faithPct = r.uncertainty ? pctOf(r.uncertainty.faithfulness.score) : 0;
   const strengthPct = r.uncertainty ? pctOf(r.uncertainty.evidenceStrength.score) : 0;
@@ -246,7 +248,7 @@ export function VerdictView({ r, docId, hideDownload, onRerun, onExport, onDebat
   return (
     <section className="verdict-panel dossier" data-verdict-panel data-dossier data-tone={tone}>
       <div className="audit-ribbon" data-audit-ribbon>
-        <p className="dossier-kicker"><span><span className="live-dot" aria-hidden="true" />LIVE AUDIT DOSSIER</span><span>Category: {category} · Telemetry ID: {dossierIdFor(r.text)}</span></p>
+        <p className="dossier-kicker"><span><span className="live-dot" aria-hidden="true" />LIVE AUDIT DOSSIER</span><span>Category: {category} · Telemetry ID: {r.id || r.historyClaimId || dossierIdFor(r.text)}</span></p>
         <div className="audit-actions">
           {onRerun && <button type="button" className="btn secondary" onClick={onRerun}><Icon name="refresh" />Re-run Verification</button>}
           {(onExport || exportRef) && <button type="button" className="btn secondary" onClick={onExport || doExport}><Icon name="download" />Export Dossier</button>}
@@ -292,7 +294,7 @@ export function VerdictView({ r, docId, hideDownload, onRerun, onExport, onDebat
               <h3 className="metric-title">Citation Alignment Score</h3>
               <p className="small">Share of classified quotes on the majority side</p>
             </div>
-            <span className="concur-pill">{top}/{total} Concur</span>
+            <span className="concur-pill">{top}/{decided} Concur</span>
           </div>
           <div className="metric-body">
             <DossierGauge value={alignPct} top={`${alignPct}%`} bottom="Concordance" tone={tone} />
@@ -312,7 +314,7 @@ export function VerdictView({ r, docId, hideDownload, onRerun, onExport, onDebat
             </div>
           </div>
           <EvidenceBalance supporting={r.supporting || []} contradicting={r.contradicting || []} />
-          <p className="small metric-note">{total ? `${top} of ${total} classified quotes sit on the majority side.` : 'No classified quotes yet.'}</p>
+          <p className="small metric-note">{decided ? `${top} of ${decided} classified quotes sit on the majority side.` : 'No classified quotes yet.'}</p>
         </div>
         <div className="metric-card">
           <div className="metric-head">
@@ -376,7 +378,10 @@ export function VerdictView({ r, docId, hideDownload, onRerun, onExport, onDebat
       {r.forensics && <div><div className="rule" /><h3>Checking the evidence</h3>
         {r.forensics.discrepancies.length === 0 ? <p className="small">We found no problems between the claim and its evidence.</p> : r.forensics.discrepancies.map((d, i) => <div className="notice" key={i} style={{ marginBottom: 8 }}><strong>{d.label}.</strong> {d.detail}</div>)}</div>}
       {r.limitations?.length > 0 && <div className="notice"><strong>Limits of this check:</strong> {r.limitations.join(' ')}</div>}
-      {r.bookPassages?.length > 0 && <div><div className="rule" /><h3>{r.sourceUrl ? 'On this page' : 'In this book'}</h3>{r.authorStance && <p className="small">The author's position: <strong>{r.authorStance.stance}</strong> — {r.authorStance.reason} (This is our reading of the text. It is not proof.)</p>}{r.bookPassages.map((p, i) => <article className="ev" key={i}><div className="meta">{p.url ? <>Web page · <a href={p.url} target="_blank" rel="noreferrer">Open source</a></> : `Page ${p.page}`}</div><p>“{p.passage}”</p></article>)}</div>}
+      {r.bookPassages?.length > 0 && <div><div className="rule" /><h3>{r.sourceUrl ? 'On this page' : 'In this book'}</h3>{r.authorStance && <p className="small">The author's position: <strong>{r.authorStance.stance}</strong> — {r.authorStance.reason} (This is our reading of the text. It is not proof.)</p>}{r.bookPassages.map((p, i) => {
+        const passageHref = safeHttpUrl(p.url);
+        return <article className="ev" key={i}><div className="meta">{passageHref ? <>Web page · <a href={passageHref} target="_blank" rel="noreferrer">Open source</a></> : `Page ${p.page}`}</div><p>“{p.passage}”</p></article>;
+      })}</div>}
       {r.followups?.length > 0 && <div><div className="rule" /><h3>Follow-up checks</h3>{r.followups.map((f, i) => <div className="notice" key={i} style={{ marginBottom: 8 }}><strong>{{ 'stronger-contrary': 'Stronger evidence against it', 'prove-wrong': 'What would prove this wrong', 'stronger-support': 'Stronger evidence for it', 'prove-right': 'What would confirm this', 'compare-author': 'What the author says', custom: 'Your own question' }[f.kind] || f.kind}:</strong> {f.instruction}<br />{f.comparison ? <>Compared with the author. Current verdict: <strong>{f.verdict}</strong></> : <>New verdict: <strong>{f.verdict}</strong></>} — {f.explanation}{f.falsifier && <><br />What would prove it wrong: {f.falsifier} Found: <strong>{f.falsifierFound ? 'yes' : 'no'}</strong></>}{f.confirmer && <><br />What would prove it right: {f.confirmer} Found: <strong>{f.confirmerFound ? 'yes' : 'no'}</strong></>}{f.newSupporting?.length > 0 && <><br />New evidence for it: {f.newSupporting.length} from new sources.</>}{f.newOpposing?.length > 0 && <><br />New evidence against it: {f.newOpposing.length} from new sources.</>}{f.comparison?.passages?.map((p, j) => <p className="small" key={j}>Page {p.page}: “{p.passage}”</p>)}</div>)}</div>}
       <div className="agent-deliberation" data-agent-deliberation>
         <p className="meta">Dialectical Triad</p>
