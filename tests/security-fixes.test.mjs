@@ -76,9 +76,10 @@ test('a corrupt document store fails closed instead of wiping on next save', asy
 test('website viewer iframe does not allow scripts', async () => {
   const { readFileSync } = await import('node:fs');
   const page = readFileSync(new URL('../app/page.js', import.meta.url), 'utf8');
-  const frames = [...page.matchAll(/<iframe[^>]*src=\{viewerDoc\.sourceUrl\}[^>]*>/g)].map((m) => m[0]);
-  assert.ok(frames.length >= 1, 'website iframe exists');
+  const frames = [...page.matchAll(/<iframe[^>]*src=\{safeHttpUrl\(viewerDoc\.sourceUrl\)\}[^>]*>/g)].map((m) => m[0]);
+  assert.ok(frames.length >= 1, 'website iframe exists through the http/https allowlist');
   for (const f of frames) assert.doesNotMatch(f, /allow-scripts/);
+  assert.doesNotMatch(page, /<iframe[^>]*src=\{viewerDoc\.sourceUrl\}/, 'viewer iframe never uses the raw source URL');
 });
 
 test('oversize uploads are rejected from headers before buffering the body', async () => {

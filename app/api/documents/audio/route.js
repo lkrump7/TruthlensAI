@@ -6,7 +6,7 @@ import { authEnabled, requestUser } from '../../../../lib/auth.mjs';
 import { storeOriginal, ORIGINAL_NOT_KEPT_WARNING } from '../../../../lib/media-store.mjs';
 import { pagesCharCount } from '../../../../lib/documents.mjs';
 import { CONFIG } from '../../../../lib/config.mjs';
-import { contentLengthTooLarge, needsContentLength } from '../../../../lib/media-store.mjs';
+import { contentLengthTooLarge, needsContentLength, boundedFormData } from '../../../../lib/media-store.mjs';
 import { createBoundedLimiter, clientIp } from '../../../../lib/rate-limit.mjs';
 
 const audioUploadLimiter = createBoundedLimiter({ windowMs: 60 * 1000, maxHits: 10, maxKeys: 1000 });
@@ -20,7 +20,8 @@ export async function POST(req) {
   if (audioUploadRateLimited(`documents-audio:${ip}`)) return Response.json({ error: 'Too many uploads. Wait a minute and try again.' }, { status: 429, headers: { 'Retry-After': '60' } });
   if (contentLengthTooLarge(req, MAX_AUDIO_FILE_BYTES)) return Response.json({ error: `Audio is larger than ${MAX_AUDIO_FILE_BYTES / (1024 * 1024)} MB.` }, { status: 413 });
   if (needsContentLength(req)) return Response.json({ error: 'Uploads need a Content-Length header so oversize files fail fast. Your client did not send one.' }, { status: 411 });
-  const form = await req.formData().catch(() => null);
+  const { form, tooLarge } = await boundedFormData(req, MAX_AUDIO_FILE_BYTES);
+  if (tooLarge) return Response.json({ error: `Audio is larger than ${MAX_AUDIO_FILE_BYTES / (1024 * 1024)} MB.` }, { status: 413 });
   const file = form?.get('file');
   if (!file || typeof file.arrayBuffer !== 'function') return Response.json({ error: 'Choose an audio file first.' }, { status: 400 });
   if (file.size > MAX_AUDIO_FILE_BYTES) return Response.json({ error: `Audio is larger than ${MAX_AUDIO_FILE_BYTES / (1024 * 1024)} MB.` }, { status: 413 });
@@ -31,12 +32,14 @@ export async function POST(req) {
     return Response.json({ error: 'Audio transcription is unavailable here. It needs Muse Voice Transcribe on Meta Model API, and no Meta key is set on this deployment.' }, { status: 503 });
   }
   const buffer = Buffer.from(await file.arrayBuffer());
+  if (buffer.length > MAX_AUDIO_FILE_BYTES) return Response.json({ error: `Audio is larger than ${MAX_AUDIO_FILE_BYTES / (1024 * 1024)} MB.` }, { status: 413 });
   let pages;
   let durationSec;
   try {
     ({ pages, durationSec } = await audioToPages(buffer));
   } catch (e) {
-    return Response.json({ error: `Transcription failed. ${e.message}` }, { status: 502 });
+    console.error('[documents/audio] transcription failed:', e?.message || e);
+    return Response.json({ error: 'Audio transcription failed. The file may be corrupt or use an unsupported format. Try a different file.' }, { status: 502 });
   }
   if (!pages.length) return Response.json({ error: 'No speech was found in that audio file.' }, { status: 422 });
   if (pagesCharCount(pages) > CONFIG.MAX_DOCUMENT_CHARS) return Response.json({ error: `Document is longer than ${CONFIG.MAX_DOCUMENT_CHARS} characters.` }, { status: 413 });

@@ -10,11 +10,12 @@ export async function GET(req) {
     const owner = requestUser(req)?.username || 'demo';
     const rawLimit = url.searchParams.get('limit');
     const rawOffset = url.searchParams.get('offset');
+    const parsedLimit = Number(rawLimit);
     const entries = await listHistory(owner, {
       query: url.searchParams.get('q') || url.searchParams.get('query') || '',
       verdict: url.searchParams.get('verdict') || '',
       workflow: url.searchParams.get('workflow') || '',
-      limit: rawLimit === null || rawLimit === '' ? 100 : Number(rawLimit),
+      limit: rawLimit === null || rawLimit === '' ? 100 : (!Number.isFinite(parsedLimit) ? 100 : Math.min(200, Math.max(1, Math.trunc(parsedLimit)))),
       offset: rawOffset === null || rawOffset === '' ? 0 : Number(rawOffset),
     });
     return Response.json({ entries, mode: mode() });

@@ -5,7 +5,7 @@ import { CONFIG } from '../../../../lib/config.mjs';
 import { ocrPdfPages } from '../../../../lib/ocr.mjs';
 import { liveStatus, getModels } from '../../../../lib/meta.mjs';
 import { authEnabled, requestUser } from '../../../../lib/auth.mjs';
-import { storeOriginal, ORIGINAL_NOT_KEPT_WARNING, contentLengthTooLarge, needsContentLength } from '../../../../lib/media-store.mjs';
+import { storeOriginal, ORIGINAL_NOT_KEPT_WARNING, contentLengthTooLarge, needsContentLength, boundedFormData } from '../../../../lib/media-store.mjs';
 import { createBoundedLimiter, clientIp } from '../../../../lib/rate-limit.mjs';
 
 const pdfUploadLimiter = createBoundedLimiter({ windowMs: 60 * 1000, maxHits: 10, maxKeys: 1000 });
@@ -32,7 +32,8 @@ export async function POST(req) {
   if (pdfUploadRateLimited(`documents-pdf:${ip}`)) return Response.json({ error: 'Too many uploads. Wait a minute and try again.' }, { status: 429, headers: { 'Retry-After': '60' } });
   if (contentLengthTooLarge(req, MAX_BYTES)) return Response.json({ error: 'PDF is larger than 15 MB.' }, { status: 413 });
   if (needsContentLength(req)) return Response.json({ error: 'Uploads need a Content-Length header so oversize files fail fast. Your client did not send one.' }, { status: 411 });
-  const form = await req.formData().catch(() => null);
+  const { form, tooLarge } = await boundedFormData(req, MAX_BYTES);
+  if (tooLarge) return Response.json({ error: 'PDF is larger than 15 MB.' }, { status: 413 });
   const file = form?.get('file');
   if (!file || typeof file.arrayBuffer !== 'function') return Response.json({ error: 'Choose a PDF file first.' }, { status: 400 });
   if (Number(file.size) > MAX_BYTES) return Response.json({ error: 'PDF is larger than 15 MB.' }, { status: 413 });

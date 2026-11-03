@@ -27,11 +27,10 @@ export async function POST(req) {
   if (!authEnabled() && action !== 'logout') {
     return Response.json({ error: 'Accounts are turned off on this deployment. You can use everything without signing in.' }, { status: 403 });
   }
-  const limitKey = `${action || ''}:${clientIp(req)}:${String(username || '').toLowerCase()}`;
+  const limitKey = `${action || ''}:${String(username || '').toLowerCase()}:${clientIp(req)}`;
   if (action !== 'logout' && rateLimited(limitKey)) return Response.json({ error: 'Too many attempts. Wait a few minutes and try again.' }, { status: 429, headers: { 'Retry-After': '900' } });
   try {
     if (action === 'logout') {
-      const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
       return new Response(JSON.stringify({ user: null }), { headers: { 'content-type': 'application/json', 'set-cookie': clearCookie(), ...NO_STORE } });
     }
     if (action === 'register') await registerUser(username, password);
@@ -41,7 +40,8 @@ export async function POST(req) {
     const token = createSessionToken(user.username, authSecret());
     return new Response(JSON.stringify({ user: user.username }), { headers: { 'content-type': 'application/json', 'set-cookie': sessionCookie(token), ...NO_STORE } });
   } catch (e) {
+    console.error(e);
     if (action === 'register') return Response.json({ error: 'Registration failed. Check the username and password, or try a different username.' }, { status: 400 });
-    return Response.json({ error: e.message }, { status: 400 });
+    return Response.json({ error: 'Invalid username or password.' }, { status: 401 });
   }
 }

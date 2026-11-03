@@ -101,7 +101,7 @@ test('videoToPages surfaces an audio-chunk failure instead of treating it as sil
   );
 });
 
-test('videoToPages surfaces a real ffmpeg extraction failure when the probe shows an audio stream', async () => {
+test('videoToPages hides real ffmpeg stderr from the client error but keeps it in the log', async () => {
   // No extractAudioChunk dep: videoToPages runs the real ffmpegAudioChunk,
   // which probes with ffprobe and shells out to ffmpeg. Stub both binaries
   // on PATH so the probe reports an audio stream and ffmpeg fails.
@@ -112,6 +112,9 @@ test('videoToPages surfaces a real ffmpeg extraction failure when the probe show
   chmodSync(join(bin, 'ffmpeg'), 0o755);
   const savedPath = process.env.PATH;
   process.env.PATH = `${bin}:${savedPath || ''}`;
+  const logged = [];
+  const realError = console.error;
+  console.error = (...args) => { logged.push(args); };
   try {
     await assert.rejects(
       () => videoToPages(Buffer.from('fake-video-with-audio'), {
@@ -120,9 +123,16 @@ test('videoToPages surfaces a real ffmpeg extraction failure when the probe show
         extractFrame: async () => Buffer.from('jpg').toString('base64'),
         captionFrame: async () => 'a frame',
       }),
-      /ffmpeg could not extract audio from that video:.*invalid data while decoding stream/,
+      (err) => {
+        const msg = String(err?.message || '');
+        assert.ok(!msg.includes('invalid data while decoding stream'), `client error leaks ffmpeg stderr: ${msg}`);
+        assert.match(msg, /Could not extract audio/);
+        return true;
+      },
     );
+    assert.ok(logged.flat().join(' ').includes('invalid data while decoding stream'), 'full ffmpeg detail still goes to the server log');
   } finally {
+    console.error = realError;
     if (savedPath === undefined) delete process.env.PATH; else process.env.PATH = savedPath;
     rmSync(bin, { recursive: true, force: true });
   }

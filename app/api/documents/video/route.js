@@ -3,7 +3,7 @@ import { videoToPages, mimeForVideoFile, MAX_VIDEO_BYTES } from '../../../../lib
 import { voiceModel } from '../../../../lib/voice.mjs';
 import { liveStatus, getModels } from '../../../../lib/meta.mjs';
 import { authEnabled, requestUser } from '../../../../lib/auth.mjs';
-import { storeOriginal, ORIGINAL_NOT_KEPT_WARNING, contentLengthTooLarge, needsContentLength } from '../../../../lib/media-store.mjs';
+import { storeOriginal, ORIGINAL_NOT_KEPT_WARNING, contentLengthTooLarge, needsContentLength, boundedFormData } from '../../../../lib/media-store.mjs';
 import { pagesCharCount } from '../../../../lib/documents.mjs';
 import { CONFIG } from '../../../../lib/config.mjs';
 import { createBoundedLimiter, clientIp } from '../../../../lib/rate-limit.mjs';
@@ -19,7 +19,8 @@ export async function POST(req) {
   if (videoUploadRateLimited(`documents-video:${ip}`)) return Response.json({ error: 'Too many uploads. Wait a minute and try again.' }, { status: 429, headers: { 'Retry-After': '60' } });
   if (contentLengthTooLarge(req, MAX_VIDEO_BYTES)) return Response.json({ error: `Video is larger than ${MAX_VIDEO_BYTES / (1024 * 1024)} MB.` }, { status: 413 });
   if (needsContentLength(req)) return Response.json({ error: 'Uploads need a Content-Length header so oversize files fail fast. Your client did not send one.' }, { status: 411 });
-  const form = await req.formData().catch(() => null);
+  const { form, tooLarge } = await boundedFormData(req, MAX_VIDEO_BYTES);
+  if (tooLarge) return Response.json({ error: `Video is larger than ${MAX_VIDEO_BYTES / (1024 * 1024)} MB.` }, { status: 413 });
   const file = form?.get('file');
   if (!file || typeof file.arrayBuffer !== 'function') return Response.json({ error: 'Choose a video file first.' }, { status: 400 });
   if (file.size > MAX_VIDEO_BYTES) return Response.json({ error: `Video is larger than ${MAX_VIDEO_BYTES / (1024 * 1024)} MB.` }, { status: 413 });
@@ -30,12 +31,14 @@ export async function POST(req) {
     return Response.json({ error: 'Video transcription is unavailable here. It needs Muse Voice Transcribe and Muse Spark vision on Meta Model API, and no Meta key is set on this deployment.' }, { status: 503 });
   }
   const buffer = Buffer.from(await file.arrayBuffer());
+  if (buffer.length > MAX_VIDEO_BYTES) return Response.json({ error: `Video is larger than ${MAX_VIDEO_BYTES / (1024 * 1024)} MB.` }, { status: 413 });
   let pages;
   let durationSec;
   try {
     ({ pages, durationSec } = await videoToPages(buffer));
   } catch (e) {
-    return Response.json({ error: `Transcription failed. ${e.message}` }, { status: 502 });
+    console.error('[documents/video] transcription failed:', e?.message || e);
+    return Response.json({ error: 'Video transcription failed. The file may be corrupt or use an unsupported format. Try a different file.' }, { status: 502 });
   }
   if (!pages.length) return Response.json({ error: 'No speech or readable frames were found in that video.' }, { status: 422 });
   if (pagesCharCount(pages) > CONFIG.MAX_DOCUMENT_CHARS) return Response.json({ error: `Document is longer than ${CONFIG.MAX_DOCUMENT_CHARS} characters.` }, { status: 413 });

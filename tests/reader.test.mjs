@@ -91,21 +91,22 @@ test('reader-pick marking does not erase a follow-up saved after the verdict (TL
   const pick = (await getDocument(doc.id)).claims.find((c) => c.status === 'unverified');
   assert.ok(pick);
   const repo = repository();
-  const origSave = repo.save.bind(repo);
-  const origLoadAll = repo.loadAll.bind(repo);
+  const origUpdate = repo.update.bind(repo);
   let injected = false;
-  repo.save = async (d) => {
-    await origSave(d);
-    if (!injected && d.id === doc.id && d.claims.find((c) => c.id === pick.id)?.status === 'verified') {
+  repo.update = async (id, mutator) => {
+    const res = await origUpdate(id, mutator);
+    if (!injected && id === doc.id && res.doc?.claims.find((c) => c.id === pick.id)?.status === 'verified') {
       injected = true;
-      const stored = structuredClone((await origLoadAll()).find((x) => x.id === doc.id));
-      const target = stored.claims.find((c) => c.id === pick.id);
-      target.followups = [{ at: new Date().toISOString(), kind: 'custom', instruction: 'concurrent', verdict: target.verdict, judgedBy: target.judgedBy, explanation: '', supporting: [], contradicting: [] }];
-      await origSave(stored);
+      await origUpdate(doc.id, (stored) => {
+        const target = stored.claims.find((c) => c.id === pick.id);
+        target.followups = [{ at: new Date().toISOString(), kind: 'custom', instruction: 'concurrent', verdict: target.verdict, judgedBy: target.judgedBy, explanation: '', supporting: [], contradicting: [] }];
+        return stored;
+      });
     }
+    return res;
   };
   let out;
-  try { out = await verifyDocumentClaim(doc.id, pick.id); } finally { repo.save = origSave; }
+  try { out = await verifyDocumentClaim(doc.id, pick.id); } finally { repo.update = origUpdate; }
   assert.equal(out.claim.source, 'reader-pick');
   const saved = (await getDocument(doc.id)).claims.find((c) => c.id === pick.id);
   assert.equal(saved.source, 'reader-pick');
