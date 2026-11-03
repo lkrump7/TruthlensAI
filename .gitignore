@@ -1,8 +1,12 @@
 node_modules/
 .next/
+test-results/
+playwright-report/
 .env.local
 data/
 .venv/
 __pycache__/
 .cloudflared-truthlens-tunnel.json
+cloudflared-truthlens.yml
 design/
+.worktrees/

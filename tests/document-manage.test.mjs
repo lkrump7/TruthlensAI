@@ -3,6 +3,12 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+// Isolated store: same parallel-race rationale as tests/store.test.mjs:
+// spin a private store per run instead of sharing data/documents.json.
+const manageDir = mkdtempSync(join(tmpdir(), 'tl-manage-'));
+process.env.TRUTHLENS_STORE_FILE = join(manageDir, 'documents.json');
+process.env.TRUTHLENS_USERS_FILE = join(manageDir, 'users.json');
 import { createDocument, getDocument, listDocuments, deleteDocument, documentTextPages, recheckDocument, whenAutoVerificationDone, challengeDocumentClaim } from '../lib/store.mjs';
 import { FileRepository, repository } from '../lib/repositories.mjs';
 import { GET, DELETE } from '../app/api/documents/[id]/route.js';

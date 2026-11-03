@@ -1,5 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+// Isolated store: this file shares data/documents.json with every other
+// default-store test process under parallel node:test, and the lock +
+// whole-file rewrite race flakes the suite. Same pattern as
+// tests/integration.test.mjs (repository() initializes lazily on first call).
+const dir = mkdtempSync(join(tmpdir(), 'tl-store-'));
+process.env.TRUTHLENS_STORE_FILE = join(dir, 'documents.json');
+process.env.TRUTHLENS_USERS_FILE = join(dir, 'users.json');
 import { createDocument } from '../lib/store.mjs';
 
 test('claims keep the page they were extracted from', async () => {
