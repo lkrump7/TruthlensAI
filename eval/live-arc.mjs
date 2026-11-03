@@ -18,13 +18,14 @@ if (!liveStatus().configured) {
 
 // The demo claims and their acceptable verdicts come from the demo test,
 // so the live gate pins the same arc and cannot drift from it.
+const { extractDemoArc } = await import('../lib/eval-harness.mjs');
 const testSource = readFileSync(new URL('../tests/demo-arc.test.mjs', import.meta.url), 'utf8');
-const claims = [...testSource.matchAll(/text: '([^']+)'/g)].map((m) => m[1]);
-const expected = [...testSource.matchAll(/assert\.equal\(r\.verdict, '([^']+)'\)/g)].map((m) => m[1]);
-if (claims.length !== 3 || expected.length !== claims.length) {
+const arc = extractDemoArc(testSource);
+if (!arc) {
   console.log('Could not read the three demo claims from tests/demo-arc.test.mjs. Live demo-arc gate cannot run; exiting.');
   process.exit(1);
 }
+const { claims, expected } = arc;
 
 let failed = 0;
 for (let i = 0; i < claims.length; i++) {

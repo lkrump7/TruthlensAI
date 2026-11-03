@@ -6,9 +6,11 @@ import { authEnabled, requestUser } from '../../../../lib/auth.mjs';
 import { storeOriginal, ORIGINAL_NOT_KEPT_WARNING } from '../../../../lib/media-store.mjs';
 import { pagesCharCount } from '../../../../lib/documents.mjs';
 import { CONFIG } from '../../../../lib/config.mjs';
+import { contentLengthTooLarge } from '../../../../lib/media-store.mjs';
 
 export async function POST(req) {
   if (authEnabled() && !requestUser(req)) return Response.json({ error: 'Sign in first.' }, { status: 401 });
+  if (contentLengthTooLarge(req, MAX_AUDIO_FILE_BYTES)) return Response.json({ error: `Audio is larger than ${MAX_AUDIO_FILE_BYTES / (1024 * 1024)} MB.` }, { status: 413 });
   const form = await req.formData().catch(() => null);
   const file = form?.get('file');
   if (!file || typeof file.arrayBuffer !== 'function') return Response.json({ error: 'Choose an audio file first.' }, { status: 400 });

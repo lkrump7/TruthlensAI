@@ -2,13 +2,14 @@ import { createDocument, publicDocument } from '../../../../lib/documents.mjs';
 import { captionImage, BlankCaptionError, mimeForImageFile, IMAGE_MIME_BY_EXT, MAX_IMAGE_BYTES } from '../../../../lib/caption.mjs';
 import { liveStatus, getModels } from '../../../../lib/meta.mjs';
 import { authEnabled, requestUser } from '../../../../lib/auth.mjs';
-import { storeOriginal, ORIGINAL_NOT_KEPT_WARNING } from '../../../../lib/media-store.mjs';
+import { storeOriginal, ORIGINAL_NOT_KEPT_WARNING, contentLengthTooLarge } from '../../../../lib/media-store.mjs';
 import { CONFIG } from '../../../../lib/config.mjs';
 
 const SUPPORTED_IMAGE_MIMES = new Set(Object.values(IMAGE_MIME_BY_EXT));
 
 export async function POST(req) {
   if (authEnabled() && !requestUser(req)) return Response.json({ error: 'Sign in first.' }, { status: 401 });
+  if (contentLengthTooLarge(req, MAX_IMAGE_BYTES)) return Response.json({ error: `Image is larger than ${MAX_IMAGE_BYTES / (1024 * 1024)} MB.` }, { status: 413 });
   const form = await req.formData().catch(() => null);
   const file = form?.get('file');
   if (!file || typeof file.arrayBuffer !== 'function') return Response.json({ error: 'Choose an image file first.' }, { status: 400 });

@@ -286,8 +286,8 @@ export default function Home() {
         const fd = new FormData(); fd.append('file', file); fd.append('title', title || file.name);
         r = await fetch('/api/documents/docx', { method: 'POST', body: fd }); d = await safeResponseJson(r);
       } else {
-        if (file.size > 200000) { setBusy(''); setErr('That text file is larger than 200,000 characters. Split it and try again.'); e.target.value = ''; return; }
         const txt = await file.text();
+        if (txt.length > 200000) { setBusy(''); setErr('That text file is larger than 200,000 characters. Split it and try again.'); e.target.value = ''; return; }
         r = await fetch('/api/documents', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: title || file.name, text: txt }) }); d = await safeResponseJson(r);
       }
       setBusy('');
@@ -310,6 +310,7 @@ export default function Home() {
   }
   async function addDoc() {
     if (!text.trim()) return setErr('Paste document text first.');
+    if (text.length > 200000) return setErr('That text is larger than 200,000 characters. Split it and try again.');
     setBusy('doc'); setErr('');
     try {
       const r = await fetch('/api/documents', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title, text }) });
@@ -963,7 +964,7 @@ export default function Home() {
                 const icon = d.kind === 'website' ? 'website' : d.kind === 'image' ? 'image' : d.kind === 'video' ? 'video' : d.kind === 'audio' ? 'audio' : 'book';
                 const blurb = ((d.claims?.[0]?.text || '').slice(0, 140)) || 'No claims extracted yet.';
                 return (
-                  <article className="vault-card" key={d.id} role="button" onClick={() => { setDoc(d); setSelected(null); }} tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDoc(d); setSelected(null); } }} aria-label={`Open claims for ${d.title}`}>
+                  <article className="vault-card" key={d.id} onClick={() => { setDoc(d); setSelected(null); }}>
                     <div className="vault-card-top">
                       <span className={`vault-ic k-${d.kind}`}><Icon name={icon} /></span>
                       <span className="vault-badge">{badge}</span>
@@ -1378,7 +1379,7 @@ export default function Home() {
             {viewerDoc.kind === 'audio' && !viewerDoc.media?.file && <p className="small">We did not keep this audio file. Below is its transcript. Add the audio again to listen here.</p>}
             {viewerDoc.media?.file?.mime === 'application/pdf' && <iframe className="viewer-frame" src={`/api/documents/${viewerDoc.id}/media`} title={`PDF: ${viewerDoc.title}`} sandbox="allow-same-origin" loading="lazy" referrerPolicy="no-referrer" />}
             {viewerDoc.media?.file && viewerDoc.media.file.ext === 'docx' && <p><a className="btn secondary" href={`/api/documents/${viewerDoc.id}/media`} download={viewerDoc.media.file.originalName || 'document.docx'}><Icon name="download" />Download the DOCX file</a>{' '}<span className="small">Your browser cannot show a DOCX file here. Its text is below.</span></p>}
-            {viewerDoc.kind === 'website' && viewerDoc.sourceUrl && <><iframe className="viewer-frame" src={viewerDoc.sourceUrl} title={`Website: ${viewerDoc.title}`} sandbox="allow-same-origin allow-scripts allow-popups" loading="lazy" referrerPolicy="no-referrer" /><p className="small">If this stays blank, the site blocks it. Use "Open the first page" above. The text we loaded is below.</p></>}
+            {viewerDoc.kind === 'website' && viewerDoc.sourceUrl && <><iframe className="viewer-frame" src={viewerDoc.sourceUrl} title={`Website: ${viewerDoc.title}`} sandbox="allow-same-origin allow-popups" loading="lazy" referrerPolicy="no-referrer" /><p className="small">If this stays blank, the site blocks it. Use "Open the first page" above. The text we loaded is below.</p></>}
             {!viewerBusy && viewerDoc.contentPages?.length > 0 && <h3>Text we read from it</h3>}
             {viewerBusy && <p className="small" role="status">Loading the file…</p>}
             {viewerDoc.viewerError && <p className="error" role="alert">{viewerDoc.viewerError}</p>}
@@ -1406,7 +1407,7 @@ export default function Home() {
             </div>
             <p><strong>{pendingDelete.title}</strong> and all its claims and answers will be permanently removed. You cannot undo this.</p>
             <p className="small">Type the file title to confirm: <strong>{pendingDelete.title}</strong></p>
-            <p><input type="text" value={confirmTitle} onChange={(e) => setConfirmTitle(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void removeDocument(); }} aria-label="Type the file title to confirm removal" placeholder="Type the file title" autoFocus /></p>
+            <p><input type="text" value={confirmTitle} onChange={(e) => setConfirmTitle(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void removeDocument(); }} aria-label="Type the file title to confirm removal" placeholder="Type the file title" /></p>
             {deleteErr && <p className="error" role="alert">{deleteErr}</p>}
             <p>
               <button type="button" className="btn secondary" onClick={() => { setPendingDelete(null); setConfirmTitle(''); }}>Keep this file</button>{' '}

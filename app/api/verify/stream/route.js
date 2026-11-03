@@ -2,7 +2,7 @@ import { verifyClaim, DEMO_EVIDENCE } from '../../../../lib/engine.mjs';
 import { liveStatus, getModels } from '../../../../lib/meta.mjs';
 import { verifyResearchedClaim } from '../../../../lib/research.mjs';
 import { CONFIG } from '../../../../lib/config.mjs';
-import { recordInvestigation, findHistoryByKey } from '../../../../lib/history.mjs';
+import { recordInvestigation, findHistoryByKey, replayModeLabel } from '../../../../lib/history.mjs';
 import { authEnabled, requestUser } from '../../../../lib/auth.mjs';
 
 
@@ -33,7 +33,7 @@ export async function POST(req) {
     const replay = await findHistoryByKey(requestUser(req)?.username || 'demo', idempotencyKey).catch(() => null);
     if (replay && replay.claim.text === text) {
       const { mode: _m, models: _mo, missing: _mi, nliChecks: _n, history: _h, ...verdictOnly } = replay.claim;
-      const result = { ...verdictOnly, history: replay.claim.history, mode: liveStatus().configured ? 'live' : 'demo', models: getModels(), historyClaimId: replay.claim.id, historyDocId: replay.doc.id };
+      const result = { ...verdictOnly, history: replay.claim.history, mode: replayModeLabel(), models: getModels(), historyClaimId: replay.claim.id, historyDocId: replay.doc.id };
       const encoder = new TextEncoder();
       const replayStream = new ReadableStream({
         start(controller) {

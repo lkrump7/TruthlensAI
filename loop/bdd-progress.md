@@ -10,10 +10,12 @@
   Validation). No separate spec file exists — rulings without a spec are provisional.
 
 ## Pre-flight interface scan
-- Producer `tests/bdd-helper.mjs` (Given/When/Then wrappers + isolated store +
-  jsonReq) → consumers: every `tests/bdd-*.test.mjs` scenario file and any
-  Playwright API helper. Contract: helper exports `bddTest`, `givenWhenThen`,
-  `jsonReq`, `isolateStore`; consumers import only those names.
+- Producer `tests/bdd-helper.mjs` (`givenWhenThen` + `jsonReq`; failures are
+  re-thrown with the Given/When/Then steps attached) → consumers: every
+  `tests/bdd-*.test.mjs` scenario file. Contract: helper exports exactly
+  `givenWhenThen` and `jsonReq`; consumers import only those names. Store
+  isolation lives in each scenario file (`mkdtempSync` + `TRUTHLENS_STORE_FILE`),
+  not in the helper.
 - Producer route handlers under `app/api/**` → consumers: scenario files import
   `POST`/`GET` directly (pattern from `tests/integration.test.mjs`). No server
   boot required; demo mode (no Meta key) keeps live costs at zero.
@@ -76,6 +78,15 @@
   code touched. Full suite 729/729 twice after (~19s, down from ~32s).
 - Ruling: `patterns.test.mjs` only imports (never calls) `createDocument`,
   so it needed no header; verified by grep before skipping it.
+
+## Deferred minors cleared (independent reviewer items 7–10)
+- Helper failures now re-throw with the Given/When/Then steps attached.
+- Ledger pre-flight contract corrected (helper exports exactly
+  `givenWhenThen` + `jsonReq`; isolation lives in scenario files).
+- Playwright webServer uses `npx next dev -p 3300` (single `-p`); boot
+  verified by passing specs.
+- Stream test asserts replayed `historyClaimId`/`historyDocId` equal the
+  first run's — proving no second investigation. 18/18 + 729/729 green.
 
 ## Fix pass (independent reviewer, 6 Important findings)
 - Fixed: persistence assertion was vacuous (`[]` is truthy) — now verifies the

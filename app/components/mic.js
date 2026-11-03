@@ -54,7 +54,10 @@ export function MicButton({ onText, label = 'Dictate', variant = 'button' }) {
     } catch { setNote('The mic is blocked. Allow it in your browser, or type.'); }
   }
   async function stop() {
-    if (state !== 'listening' || !rec.current) return;
+    // Guard on the ref, not render-time state: the 60s auto-stop timer
+    // captures this closure before setState('listening') re-renders,
+    // so a state check here would no-op the timer every time.
+    if (!rec.current) return;
     if (stopTimer.current) { clearTimeout(stopTimer.current); stopTimer.current = null; }
     const { stream, ctx, processor, source, frames, rate } = rec.current;
     rec.current = null;
@@ -83,6 +86,7 @@ export function MicButton({ onText, label = 'Dictate', variant = 'button' }) {
   const hold = {
     onPointerDown: (e) => { e.preventDefault(); start(); },
     onPointerUp: stop,
+    onPointerCancel: stop,
     onPointerLeave: () => { if (state === 'listening') stop(); },
     onKeyDown: (e) => { if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) { e.preventDefault(); start(); } },
     onKeyUp: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); stop(); } },
@@ -91,7 +95,7 @@ export function MicButton({ onText, label = 'Dictate', variant = 'button' }) {
   if (variant === 'inline') {
     return (
       <span data-mic data-mic-inline className="mic-inline">
-        <button type="button" className="mic-icon" data-state={state} title={aria} aria-label={aria} {...hold} disabled={state === 'working'}>
+        <button type="button" className="mic-icon" data-state={state} title={aria} aria-label={aria} aria-pressed={state === 'listening'} {...hold} disabled={state === 'working'}>
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 14.5a3.25 3.25 0 0 0 3.25-3.25v-5A3.25 3.25 0 1 0 8.75 6.25v5A3.25 3.25 0 0 0 12 14.5Z" /><path fill="currentColor" d="M17.1 11.25a5.1 5.1 0 0 1-10.2 0H5.4a6.6 6.6 0 0 0 5.85 6.54v3.46H9.5a.75.75 0 0 0 0 1.5h5a.75.75 0 0 0 0-1.5h-1.75v-3.46A6.6 6.6 0 0 0 18.6 11.25h-1.5Z" /></svg>
           <span className="mic-sr">{state === 'listening' ? 'Listening. Release to fill the box.' : state === 'working' ? 'Transcribing.' : label}</span>
         </button>
@@ -102,7 +106,7 @@ export function MicButton({ onText, label = 'Dictate', variant = 'button' }) {
   }
   return (
     <span data-mic>
-      <button type="button" className="btn secondary" aria-label={aria} {...hold} disabled={state === 'working'}>
+      <button type="button" className="btn secondary" aria-label={aria} aria-pressed={state === 'listening'} {...hold} disabled={state === 'working'}>
         {state === 'listening' ? 'Listening… release to fill the box' : state === 'working' ? 'Transcribing…' : label}
       </button>
       <span className="small"> Hold the button and speak. Your words go in the box. You can edit them. </span>

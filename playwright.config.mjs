@@ -14,7 +14,9 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   webServer: {
-    command: 'npm run dev -- -p 3300',
+    // Direct next invocation: `npm run dev -- -p 3300` expands to two `-p`
+    // flags and only works by last-wins. This states the port exactly once.
+    command: 'npx next dev -p 3300',
     url: 'http://127.0.0.1:3300',
     // Never attach to a foreign server: another project already answers on
     // 3100 in this environment, which silently redirected every scenario to

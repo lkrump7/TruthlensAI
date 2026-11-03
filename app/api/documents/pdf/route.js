@@ -5,7 +5,7 @@ import { CONFIG } from '../../../../lib/config.mjs';
 import { ocrPdfPages } from '../../../../lib/ocr.mjs';
 import { liveStatus, getModels } from '../../../../lib/meta.mjs';
 import { authEnabled, requestUser } from '../../../../lib/auth.mjs';
-import { storeOriginal, ORIGINAL_NOT_KEPT_WARNING } from '../../../../lib/media-store.mjs';
+import { storeOriginal, ORIGINAL_NOT_KEPT_WARNING, contentLengthTooLarge } from '../../../../lib/media-store.mjs';
 
 const MAX_BYTES = 15 * 1024 * 1024;
 
@@ -15,6 +15,7 @@ export function pdfUploadTooLarge(fileSize, bufferLength, maxBytes = MAX_BYTES) 
 
 export async function POST(req) {
   if (authEnabled() && !requestUser(req)) return Response.json({ error: 'Sign in first.' }, { status: 401 });
+  if (contentLengthTooLarge(req, MAX_BYTES)) return Response.json({ error: 'PDF is larger than 15 MB.' }, { status: 413 });
   const form = await req.formData().catch(() => null);
   const file = form?.get('file');
   if (!file || typeof file.arrayBuffer !== 'function') return Response.json({ error: 'Choose a PDF file first.' }, { status: 400 });

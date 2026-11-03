@@ -1,21 +1,18 @@
 import { parseClaimBatch, verifyClaimBatch, MAX_BATCH_CLAIMS } from '../../../../lib/history.mjs';
 import { authEnabled, requestUser } from '../../../../lib/auth.mjs';
 import { liveStatus } from '../../../../lib/meta.mjs';
+import { createBoundedLimiter, clientIp } from '../../../../lib/rate-limit.mjs';
 
 const mode = () => (liveStatus().configured ? 'live-ready' : 'demo');
 
-const batchAttempts = new Map();
+const batchLimiter = createBoundedLimiter({ windowMs: 60 * 1000, maxHits: 20, maxKeys: 1000 });
 export function batchRateLimited(key) {
-  const now = Date.now();
-  const hits = (batchAttempts.get(key) || []).filter((t) => now - t < 60 * 1000);
-  hits.push(now);
-  batchAttempts.set(key, hits);
-  return hits.length > 20;
+  return batchLimiter.check(key);
 }
 
 export async function POST(req) {
   if (authEnabled() && !requestUser(req)) return Response.json({ error: 'Sign in first.' }, { status: 401 });
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'local';
+  const ip = clientIp(req);
   if (batchRateLimited(`batch:${ip}`)) return Response.json({ error: 'Too many checks. Wait a minute and try again.' }, { status: 429, headers: { 'Retry-After': '60' } });
   const body = await req.json().catch(() => ({}));
   const all = parseClaimBatch(body.claims ?? body.text ?? '', Number.MAX_SAFE_INTEGER);

@@ -2,8 +2,9 @@ import { verifyClaim, DEMO_EVIDENCE } from '../../../lib/engine.mjs';
 import { liveStatus, getModels } from '../../../lib/meta.mjs';
 import { verifyResearchedClaim } from '../../../lib/research.mjs';
 import { CONFIG } from '../../../lib/config.mjs';
-import { recordInvestigation, findHistoryByKey } from '../../../lib/history.mjs';
+import { recordInvestigation, findHistoryByKey, replayModeLabel } from '../../../lib/history.mjs';
 import { authEnabled, requestUser } from '../../../lib/auth.mjs';
+import { createBoundedLimiter, clientIp } from '../../../lib/rate-limit.mjs';
 
 async function remember(req, result, idempotencyKey) {
   try {
@@ -16,18 +17,14 @@ async function remember(req, result, idempotencyKey) {
   }
 }
 
-const verifyAttempts = new Map();
+const verifyLimiter = createBoundedLimiter({ windowMs: 60 * 1000, maxHits: 30, maxKeys: 1000 });
 export function verifyRateLimited(key) {
-  const now = Date.now();
-  const hits = (verifyAttempts.get(key) || []).filter((t) => now - t < 60 * 1000);
-  hits.push(now);
-  verifyAttempts.set(key, hits);
-  return hits.length > 30;
+  return verifyLimiter.check(key);
 }
 
 export async function POST(req) {
   if (authEnabled() && !requestUser(req)) return Response.json({ error: 'Sign in first.' }, { status: 401 });
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'local';
+  const ip = clientIp(req);
   if (verifyRateLimited(`verify:${ip}`)) return Response.json({ error: 'Too many checks. Wait a minute and try again.' }, { status: 429, headers: { 'Retry-After': '60' } });
   const { claim } = await req.json().catch(() => ({}));
   if (typeof claim !== 'string' || !claim.trim()) return Response.json({ error: 'Enter a claim first.' }, { status: 400 });
@@ -38,7 +35,7 @@ export async function POST(req) {
     const replay = await findHistoryByKey(requestUser(req)?.username || 'demo', idempotencyKey).catch(() => null);
     if (replay && replay.claim.text === text) {
       const { mode: _m, models: _mo, missing: _mi, nliChecks: _n, history: _h, ...verdictOnly } = replay.claim;
-      return Response.json({ ...verdictOnly, history: replay.claim.history, mode: 'live', models: getModels(), historyClaimId: replay.claim.id, historyDocId: replay.doc.id });
+      return Response.json({ ...verdictOnly, history: replay.claim.history, mode: replayModeLabel(), models: getModels(), historyClaimId: replay.claim.id, historyDocId: replay.doc.id });
     }
   }
   const status = liveStatus();
@@ -61,6 +58,7 @@ export async function POST(req) {
     }
   } catch (err) {
     if (err?.code === 'idempotency-conflict') return Response.json({ error: err.message }, { status: 409 });
-    return Response.json(await remember(req, { text, type: 'Scientific', verdict: 'Unverifiable', judgedBy: 'Muse Spark 1.3', supporting: [], contradicting: [], mode: 'live-failed', models: getModels(), explanation: 'Live research failed, so no verdict was produced rather than falling back to a canned one.', limitations: [`Live research failed (${err.message}). Retry the claim.`] }, idempotencyKey));
+    console.error('[truthlens] live research failed:', err);
+    return Response.json(await remember(req, { text, type: 'Scientific', verdict: 'Unverifiable', judgedBy: 'Muse Spark 1.3', supporting: [], contradicting: [], mode: 'live-failed', models: getModels(), explanation: 'Live research failed, so no verdict was produced rather than falling back to a canned one.', limitations: ['Live research failed. Retry the claim.'] }, idempotencyKey));
   }
 }

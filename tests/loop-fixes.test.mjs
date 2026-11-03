@@ -10,6 +10,7 @@ const layout = readFileSync(new URL('../app/layout.js', import.meta.url), 'utf8'
 const modal = readFileSync(new URL('../app/components/modal.js', import.meta.url), 'utf8');
 const toggle = readFileSync(new URL('../app/components/theme-toggle.js', import.meta.url), 'utf8');
 const verdict = readFileSync(new URL('../app/components/verdict.js', import.meta.url), 'utf8');
+const mic = readFileSync(new URL('../app/components/mic.js', import.meta.url), 'utf8');
 
 test('txt/md uploads have a client size cap', () => {
   const MB = 1024 * 1024;
@@ -29,8 +30,32 @@ test('route boundaries exist for App Router', () => {
   assert.ok(existsSync(new URL('../app/not-found.js', import.meta.url)), 'app/not-found.js missing');
 });
 
-test('vault cards expose button semantics', () => {
-  assert.match(page, /role="button"/);
+test('vault cards keep one keyboard path with no nested controls', () => {
+  assert.doesNotMatch(page, /<article className="vault-card"[^>]*role="button"/);
+  assert.match(page, /vault-card-title/);
+});
+
+test('mic auto-stop can fire after state moved on', () => {
+  assert.doesNotMatch(mic, /if \(state !== 'listening' \|\| !rec\.current\) return;/);
+  assert.match(mic, /if \(!rec\.current\) return;/);
+});
+
+test('mic buttons expose press state and pointer cancel', () => {
+  assert.match(mic, /aria-pressed/);
+  assert.match(mic, /onPointerCancel/);
+});
+
+test('text upload fallback measures characters, not bytes', () => {
+  assert.doesNotMatch(page, /file\.size > 200000/);
+  assert.match(page, /txt\.length > 200000/);
+});
+
+test('pasted text is capped client-side before upload', () => {
+  assert.match(page, /text\.length > 200000/);
+});
+
+test('delete confirm relies on modal focus, not autofocus', () => {
+  assert.doesNotMatch(page, /autoFocus/);
 });
 
 test('images carry lazy loading and dimensions', () => {

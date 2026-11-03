@@ -33,10 +33,12 @@ test('register then authenticate round-trips; duplicates and bad passwords fail'
 });
 
 test('requestUser is null with accounts off and reads the session with accounts on', () => {
-  const cookie = sessionCookie(createSessionToken('alice', authSecret()));
-  const req = () => new Request('http://t/x', { headers: { cookie } });
   const saved = process.env.AUTH_ENABLED;
+  const savedSecret = process.env.AUTH_SECRET;
   try {
+    process.env.AUTH_SECRET = 'test-secret-for-auth-test';
+    const cookie = sessionCookie(createSessionToken('alice', authSecret()));
+    const req = () => new Request('http://t/x', { headers: { cookie } });
     delete process.env.AUTH_ENABLED;
     assert.equal(requestUser(req()), null);
     process.env.AUTH_ENABLED = 'true';
@@ -44,6 +46,7 @@ test('requestUser is null with accounts off and reads the session with accounts 
     assert.equal(requestUser(new Request('http://t/x')), null);
   } finally {
     if (saved === undefined) delete process.env.AUTH_ENABLED; else process.env.AUTH_ENABLED = saved;
+    if (savedSecret === undefined) delete process.env.AUTH_SECRET; else process.env.AUTH_SECRET = savedSecret;
   }
 });
 

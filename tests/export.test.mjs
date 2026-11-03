@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildInvestigationReport } from '../lib/export.mjs';
 
+process.env.AUTH_SECRET ||= 'test-secret-for-export-suite';
+
 const RECORD = {
   text: 'Humans only use 10% of their brains.',
   verdict: 'Contradicted',

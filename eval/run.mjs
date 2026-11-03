@@ -9,8 +9,8 @@ try {
 } catch { /* demo mode: every claim will report mode demo */ }
 
 if (process.argv.includes('--no-challenge')) process.env.TRUTHLENS_NO_CHALLENGE = '1';
-const trialsArg = process.argv.find((a) => a.startsWith('--trials'));
-const TRIALS = Math.max(1, Number(trialsArg?.split('=')[1] || process.argv[process.argv.indexOf('--trials') + 1]) || 3);
+const { parseTrials } = await import('../lib/eval-harness.mjs');
+const TRIALS = parseTrials(process.argv);
 const { verifyResearchedClaim } = await import('../lib/pipeline.mjs');
 const { summariseTrials } = await import('../lib/evalstats.mjs');
 const { pingForMiss } = await import('../lib/failures.mjs');

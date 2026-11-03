@@ -73,7 +73,9 @@ test('BDD stream: the same idempotency key replays the same verdict', async () =
       const line = part.split('\n').find((l) => l.startsWith('data: '));
       return line ? JSON.parse(line.slice(6)) : null;
     }).filter(Boolean);
-    return events.find((e) => e.kind === 'verdict')?.result;
+    const result = events.find((e) => e.kind === 'verdict')?.result;
+    assert.ok(result?.historyClaimId && result?.historyDocId, 'verdict carries its history record');
+    return result;
   };
   await givenWhenThen(
     'a streamed verification already recorded under an idempotency key',
@@ -92,6 +94,8 @@ test('BDD stream: the same idempotency key replays the same verdict', async () =
       })));
       assert.equal(second.text, first.text);
       assert.equal(second.verdict, first.verdict);
+      assert.equal(second.historyClaimId, first.historyClaimId, 'replay reuses the recorded investigation');
+      assert.equal(second.historyDocId, first.historyDocId);
     },
   );
 });

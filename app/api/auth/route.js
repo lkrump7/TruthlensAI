@@ -1,12 +1,9 @@
 import { registerUser, authenticateUser, createSessionToken, currentUser, sessionCookie, authSecret, authEnabled } from '../../../lib/auth.mjs';
+import { createBoundedLimiter } from '../../../lib/rate-limit.mjs';
 
-const attempts = new Map();
+const authLimiter = createBoundedLimiter({ windowMs: 15 * 60 * 1000, maxHits: 10, maxKeys: 1000 });
 function rateLimited(key) {
-  const now = Date.now();
-  const hits = (attempts.get(key) || []).filter((t) => now - t < 15 * 60 * 1000);
-  hits.push(now);
-  attempts.set(key, hits);
-  return hits.length > 10;
+  return authLimiter.check(key);
 }
 
 export async function GET(req) {
@@ -25,7 +22,8 @@ export async function POST(req) {
   if (action !== 'logout' && rateLimited(limitKey)) return Response.json({ error: 'Too many attempts. Wait a few minutes and try again.' }, { status: 429, headers: { 'Retry-After': '900' } });
   try {
     if (action === 'logout') {
-      return new Response(JSON.stringify({ user: null }), { headers: { 'content-type': 'application/json', 'set-cookie': 'tl_session=; HttpOnly; Path=/; Max-Age=0' } });
+      const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+      return new Response(JSON.stringify({ user: null }), { headers: { 'content-type': 'application/json', 'set-cookie': `tl_session=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0${secure}` } });
     }
     if (action === 'register') await registerUser(username, password);
     else if (action !== 'login') return Response.json({ error: 'Unknown action.' }, { status: 400 });

@@ -264,3 +264,36 @@ test('a deleted demo book is not seeded back on the next listing', async () => {
   const after = await seedDemo();
   assert.ok(!after.some((d) => d.title === 'The Mind, Examined — demo book'), 'the deleted demo book stays deleted');
 });
+
+test('verify route replay keeps the honest demo label instead of claiming live', async () => {
+  const { POST: verifyPost } = await import('../app/api/verify/route.js');
+  const text = 'Replay keeps its honest demo mode label here.';
+  const key = `replay-mode-${Date.now()}-${Math.random()}`;
+  const makeReq = () => new Request('http://x/api/verify', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'idempotency-key': key },
+    body: JSON.stringify({ claim: text }),
+  });
+  const first = await verifyPost(makeReq());
+  assert.equal(first.status, 200);
+  const firstBody = await first.json();
+  assert.equal(firstBody.mode, 'demo', 'fresh demo verdict is labelled demo');
+  const second = await verifyPost(makeReq());
+  assert.equal(second.status, 200);
+  const secondBody = await second.json();
+  assert.equal(secondBody.mode, 'demo', `replay keeps the demo label, got ${secondBody.mode}`);
+  assert.equal(secondBody.historyClaimId, firstBody.historyClaimId, 'replay returns the same stored record');
+});
+
+test('verifyClaimBatch timeout verdict carries the classified claim type', async () => {
+  const { classifyClaim } = await import('../lib/claims.mjs');
+  const slow = 'Slow reservoir claim stalls far too long here.';
+  const out = await verifyClaimBatch([slow], {
+    owner: 'reader-batch-type',
+    timeoutMs: 30,
+    verifyOne: async (text) => { await new Promise((r) => setTimeout(r, 500)); return verdictFor(text, 'Supported'); },
+  });
+  assert.equal(out[0].ok, true, 'timeout still yields a result slot');
+  assert.equal(out[0].result.verdict, 'Unverifiable');
+  assert.equal(out[0].result.type, classifyClaim(slow), `timeout type is classified, got ${out[0].result.type}`);
+});

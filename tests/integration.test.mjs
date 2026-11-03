@@ -8,6 +8,7 @@ import { join } from 'node:path';
 const dir = mkdtempSync(join(tmpdir(), 'tl-int-'));
 process.env.TRUTHLENS_STORE_FILE = join(dir, 'documents.json');
 process.env.TRUTHLENS_USERS_FILE = join(dir, 'users.json');
+process.env.AUTH_SECRET ||= 'test-secret-for-integration-suite';
 delete process.env.META_MODEL_API_URL;
 delete process.env.META_MODEL_API_KEY;
 
