@@ -146,15 +146,17 @@ test('sourceTier ranks .gov/.edu above generic blogs', () => {
   assert.ok(sourceTier('mcgovern.mit.edu') > sourceTier('random-blog.example'));
 });
 
-test('decisive verdict from a single independent source is downgraded', async () => {
+test('single-source Contradicted stays Contradicted with a single-source limit', async () => {
   const search = async () => parseSearchResponse(SAMPLE);
   const fetchText = async (url) => url.includes('b.example')
     ? '<body><p>Cooking recipes and kitchen notes fill this whole page today.</p></body>'
     : '<body><p>Brain scans show activity throughout the brain every day, contradicting the ten percent myth about brains.</p></body>';
   const judge = async ({ evidence }) => ({ verdict: 'Contradicted', citedIds: evidence.map((e) => e.id), stances: Object.fromEntries(evidence.map((e) => [e.id, 'contradicts'])), explanation: 'One source says no.' });
   const r = await verifyResearchedClaim('Humans only use 10% of their brains.', { search, fetchText, judge, cache: false });
-  assert.equal(r.verdict, 'Partially supported');
+  assert.equal(r.verdict, 'Contradicted');
   assert.ok(r.limitations.some((l) => /single independent source/i.test(l)));
+  assert.equal(r.contradicting.length, 1);
+  assert.equal(r.contradicting[0].stance, 'contradicts');
 });
 
 test('decisive verdict with two independent domains stands, and newer contradiction makes it Outdated', async () => {
@@ -163,7 +165,7 @@ test('decisive verdict with two independent domains stands, and newer contradict
     { title: 'New ruling', url: 'https://b.example/pluto-new' },
   ] });
   const fetchText = async (url) => url.includes('old')
-    ? '<html><head><meta property="article:published_time" content="2004-01-01"></head><body><p>Pluto is a planet listed as the ninth planet in older astronomy books.</p></body></html>'
+    ? '<html><head><meta property="article:published_time" content="2004-01-01"></head><body><p>Pluto is a planet listed as the ninth planet in older astronomy excerpts.</p></body></html>'
     : '<html><head><meta property="article:published_time" content="2006-08-24"></head><body><p>Pluto is a planet no longer; astronomers reclassified Pluto as a dwarf planet.</p></body></html>';
   const judge = async ({ evidence }) => ({ verdict: 'Partially supported', citedIds: evidence.map((e) => e.id), stances: Object.fromEntries(evidence.map((e) => [e.id, e.date < '2005' ? 'supports' : 'contradicts'])), explanation: 'Both cited.' });
   const r = await verifyResearchedClaim('Pluto is a planet.', { search, fetchText, judge, cache: false });
@@ -400,14 +402,52 @@ test('sad: a throwing challenger leaves the gated verdict untouched', async () =
   assert.equal(r.preChallengeVerdict, undefined);
 });
 
-test('researchStage drops a page whose best window shares only one content word with the claim', async () => {
-  // Exactly one stemmed claim token ("brain") overlaps; see claimOverlapCount probe in report.
+test('researchStage keeps a short-claim page whose best window shares one content word', async () => {
+  // One stemmed claim token ("brain") overlaps, but the claim has only
+  // three content tokens, so that one word is a third of the claim and
+  // the passage is on its subject. Dropping it made a checkable claim
+  // Unverifiable before the judge ever saw the passage.
   const search = async () => ({ queries: ['q'], citations: [], sources: [{ title: 'Scan', url: 'https://scan.example/brain' }] });
   const fetchText = async () => '<body><p>Brain imaging shows activity across the whole organ during ordinary tasks and sleep cycles today.</p></body>';
   const out = await researchStage('Humans only use 10% of their brains.', 'Statistical', { search, fetchText, cache: false, embedTexts: async () => null, rerankTexts: async () => null });
+  assert.equal(out.research.evidence.length, 1);
+  assert.equal(out.judgeEvidence.length, 1);
+  assert.equal(out.final, null);
+});
+
+test('researchStage drops a long-claim page whose best window shares only one incidental word', async () => {
+  // One shared word ("water") out of ten claim tokens is coincidence,
+  // not relevance: the gate stays closed and the claim stays honestly
+  // Unverifiable rather than sending the judge an off-topic passage.
+  const search = async () => ({ queries: ['q'], citations: [], sources: [{ title: 'Reservoir', url: 'https://reservoir.example/levels' }] });
+  const fetchText = async () => '<body><p>Water levels in reservoir rose steadily after heavy rain during spring.</p></body>';
+  const out = await researchStage('The city council approved the new water treatment plant budget for next year.', 'Statistical', { search, fetchText, cache: false, embedTexts: async () => null, rerankTexts: async () => null });
   assert.equal(out.research.evidence.length, 0);
   assert.equal(out.judgeEvidence.length, 0);
   assert.equal(out.final.verdict, 'Unverifiable');
+  assert.ok(out.final.limitations.some((l) => /semantic search was unavailable/i.test(l)), JSON.stringify(out.final.limitations));
+});
+
+test('researchStage drops a page whose only shared word with the claim is a function word', async () => {
+  // The passage is on the claim's topic in other words ("drug",
+  // "hypertension"), but lexically it shares only "the". A function
+  // word is not relevance, whatever the claim's length.
+  const search = async () => ({ queries: ['q'], citations: [], sources: [{ title: 'Drug', url: 'https://drug.example/trial' }] });
+  const fetchText = async () => '<body><p>The drug reduced hypertension in patients over twelve weeks of treatment.</p></body>';
+  const out = await researchStage('The medication lowers blood pressure.', 'Scientific', { search, fetchText, cache: false, embedTexts: async () => null, rerankTexts: async () => null });
+  assert.equal(out.research.evidence.length, 0);
+  assert.equal(out.final.verdict, 'Unverifiable');
+});
+
+test('researchStage keeps a page that states the claim figure without thousand separators', async () => {
+  // Claim writes 8,849; the page writes 8849. Before grouped digits were
+  // read as one number, the only overlap was "everest" and the page was
+  // dropped, leaving a checkable claim Unverifiable.
+  const search = async () => ({ queries: ['q'], citations: [], sources: [{ title: 'Peak', url: 'https://peak.example/everest' }] });
+  const fetchText = async () => '<body><p>Everest rises 8849 m above sea level, the highest peak on Earth.</p></body>';
+  const out = await researchStage('Mount Everest is 8,849 metres tall.', 'Statistical', { search, fetchText, cache: false, embedTexts: async () => null, rerankTexts: async () => null });
+  assert.equal(out.research.evidence.length, 1);
+  assert.equal(out.final, null);
 });
 
 test('researchStage keeps a page whose best window shares two content words with the claim', async () => {

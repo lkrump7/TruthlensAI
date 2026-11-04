@@ -7,7 +7,7 @@ standalone checker holds one line, keeps the last verdict on screen, and
 drops earlier verdicts into a short list that lives only in the tab.
 Reload and it is gone. The standalone routes store nothing on the server.
 
-Books and websites already persist. Their claims, verdicts, challenges,
+Excerpts and websites already persist. Their claims, verdicts, challenges,
 and recheck history survive a reload. The fix extends that proven path
 to standalone claims instead of inventing a second store.
 
@@ -21,7 +21,7 @@ to reopen any past check with its full evidence.
 - Run them as a queue. Each claim shows its own state and verdict.
 - Submit again right away. Earlier verdicts stay visible below.
 - Every finished standalone verdict is saved on the server.
-- One History view covers all four workflows. Single claims, book
+- One History view covers all four workflows. Single claims, excerpt
   claims, website claims, and questions asked of a source all appear in
   one searchable list.
 - Reopen any history row to see the full verdict and evidence again.
@@ -32,7 +32,7 @@ to reopen any past check with its full evidence.
 
 - No new account system. History follows the current owner rules. With
   accounts off, everyone shares the workspace history. With accounts on,
-  a reader sees their own history plus the demo book.
+  a reader sees their own history plus the demo excerpt.
 - No resume of a half-finished live investigation. The graph checkpoint
   stays as it is. History stores finished verdicts.
 - No change to verdict logic, evidence rules, or the demo arc.
@@ -48,7 +48,7 @@ was picked. It is the only option that is true across all workflows and
 survives a restart.
 
 Browser-only memory. Fast, but lost when site data is cleared and blind
-to book claims. Rejected.
+to excerpt claims. Rejected.
 
 Hybrid. Server results plus browser drafts. The draft part is kept, as a
 typing aid only. Finished verdicts live on the server.
@@ -76,7 +76,7 @@ overwrite each other.
 `listHistory` loads every document the reader can see and flattens the
 verified claims into entries. Each entry carries the claim text, the
 verdict, who judged it, when it was judged, the workflow it came from,
-and the document title. Book, website, and reader-submitted claims need
+and the document title. Excerpt, website, and reader-submitted claims need
 no extra write. They are already on their documents, and history reads
 them from there. Results sort newest first and can be narrowed by a
 word search, a verdict, or a workflow.
@@ -109,7 +109,7 @@ text is kept in the browser as a draft and restored on reload.
 
 Library gains a History section. It has a search box, verdict and
 workflow filters, and one row per past investigation. Picking a row
-reopens the full verdict view. Standalone rows reopen in place. Book and
+reopens the full verdict view. Standalone rows reopen in place. Excerpt and
 website rows open their document claim.
 
 ## Error handling

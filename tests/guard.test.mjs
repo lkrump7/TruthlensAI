@@ -80,7 +80,7 @@ test('research falls back to the regex screen when the screener throws', async (
   assert.ok(out.evidence.length >= 1, 'a throwing screener must not fail the whole research run');
 });
 
-test('claim extraction never turns guard-flagged book text into a claim', async () => {
+test('claim extraction never turns guard-flagged excerpt text into a claim', async () => {
   const screenTexts = async (texts) => texts.map((t) => ({ action: /dormant/.test(t) ? 'quarantine' : 'allow', category: /dormant/.test(t) ? 'prompt-guard' : null, matched: null }));
   const claims = await extractClaimsFromPages([{ page: 1, text: 'Humans only use ten percent of their brains while the rest stays dormant in daily life. Water boils at 100 degrees Celsius at sea level in kitchens.' }], { screenTexts });
   assert.ok(!claims.some((c) => /dormant/i.test(c.text)), JSON.stringify(claims));
@@ -90,7 +90,7 @@ test('claim extraction never turns guard-flagged book text into a claim', async 
 test('createDocument counts guard-quarantined chunks as quarantined', async () => {
   const screenTexts = async (texts) => texts.map((t) => ({ action: /dormant/.test(t) ? 'quarantine' : 'allow', category: /dormant/.test(t) ? 'prompt-guard' : null, matched: null }));
   const doc = await createDocument({
-    title: 'Guarded book',
+    title: 'Guarded excerpt',
     owner: 'guard-test',
     pages: [{ page: 1, text: 'Humans only use ten percent of their brains while the rest stays dormant in daily life. Water boils at 100 degrees Celsius at sea level in kitchens today.' }],
   }, { screenTexts });

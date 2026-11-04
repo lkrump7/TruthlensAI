@@ -1,0 +1,102 @@
+[
+  { "label": "supported", "claim": "Water boils at 100 degrees Celsius at sea level.", "expected": ["Supported", "Partially supported"],
+    "pages": [
+      { "title": "A", "url": "https://a.example/water", "body": "<body><p>Water boils at 100 degrees Celsius at sea level in kitchens every day.</p></body>" },
+      { "title": "B", "url": "https://b.example/water", "body": "<body><p>At sea level, water boils at 100 degrees Celsius according to lab tables.</p></body>" }
+    ],
+    "judge": { "verdict": "Supported", "citeAll": true, "stance": "supports", "explanation": "Both passages support it." } },
+  { "label": "supported", "claim": "Apollo 11 landed on the Moon in 1969.", "expected": ["Supported", "Partially supported"],
+    "pages": [
+      { "title": "A", "url": "https://a.example/apollo", "body": "<body><p>Apollo 11 landed on the Moon in 1969 during the historic mission.</p></body>" },
+      { "title": "B", "url": "https://b.example/apollo", "body": "<body><p>NASA records show Apollo 11 landed on the Moon in 1969 with astronauts aboard.</p></body>" }
+    ],
+    "judge": { "verdict": "Supported", "citeAll": true, "stance": "supports", "explanation": "Both passages support it." } },
+  { "label": "supported", "claim": "Photosynthesis converts carbon dioxide and water into glucose using sunlight.", "expected": ["Supported", "Partially supported"],
+    "pages": [
+      { "title": "A", "url": "https://a.example/photo", "body": "<body><p>Photosynthesis converts carbon dioxide and water into glucose using sunlight in green leaves.</p></body>" },
+      { "title": "B", "url": "https://b.example/photo", "body": "<body><p> textbooks: photosynthesis converts carbon dioxide and water into glucose using sunlight for plant energy.</p></body>" }
+    ],
+    "judge": { "verdict": "Supported", "citeAll": true, "stance": "supports", "explanation": "Both passages support it." } },
+  { "label": "contradicted", "claim": "Humans only use 10 percent of their brains.", "expected": ["Contradicted", "Partially supported"],
+    "pages": [
+      { "title": "A", "url": "https://a.example/brain", "body": "<body><p>Brain scans show activity throughout the human brain every day, contradicting the ten percent myth about brains.</p></body>" },
+      { "title": "B", "url": "https://b.example/brain", "body": "<body><p>Neurologists measuring human brains find the ten percent claim about brain use has no support in scans.</p></body>" }
+    ],
+    "judge": { "verdict": "Contradicted", "citeAll": true, "stance": "contradicts", "explanation": "Both passages contradict it." } },
+  { "label": "contradicted", "claim": "The Moon landing was a hoax staged in a film studio.", "expected": ["Contradicted", "Partially supported"],
+    "pages": [
+      { "title": "A", "url": "https://a.example/moon", "body": "<body><p>The Moon landing was real; astronauts landed on the Moon, and film studio hoax claims have no evidence.</p></body>" },
+      { "title": "B", "url": "https://b.example/moon", "body": "<body><p>Telemetry and rocks confirm the Moon landing happened; the studio hoax story fails every check.</p></body>" }
+    ],
+    "judge": { "verdict": "Contradicted", "citeAll": true, "stance": "contradicts", "explanation": "Both passages contradict it." } },
+  { "label": "misleading", "claim": "The Great Wall of China is visible from space with the naked eye.", "expected": ["Misleading", "Contradicted", "Partially supported"],
+    "pages": [
+      { "title": "A", "url": "https://a.example/wall", "body": "<body><p>The Great Wall of China is wide and long but not visible from space with the naked eye; astronauts need zoom lenses.</p></body>" },
+      { "title": "B", "url": "https://b.example/wall", "body": "<body><p>From space with the naked eye the Great Wall of China blends in; photos use telephoto lenses.</p></body>" }
+    ],
+    "judge": { "verdict": "Misleading", "citeAll": true, "stance": "misleading", "explanation": "Passages show the impression is wrong." } },
+  { "label": "misleading", "claim": "Humans evolved from chimpanzees, which is why we share most of our DNA with them.", "expected": ["Misleading", "Partially supported", "Contradicted"],
+    "pages": [
+      { "title": "A", "url": "https://a.example/evo", "body": "<body><p>Humans share most DNA with chimpanzees but evolved from a common ancestor, not directly from chimpanzees.</p></body>" },
+      { "title": "B", "url": "https://b.example/evo", "body": "<body><p>Shared DNA shows kinship; humans did not evolve from living chimpanzees but alongside them.</p></body>" }
+    ],
+    "judge": { "verdict": "Misleading", "citeAll": true, "stance": "misleading", "explanation": "Wording oversimplifies the lineage." } },
+  { "label": "conflicting", "claim": "Pluto is a planet.", "expected": ["Contradicted", "Outdated", "Partially supported"],
+    "pages": [
+      { "title": "Old", "url": "https://a.example/pluto", "body": "<body><p>Older textbooks list Pluto as a planet in the solar system before 2006.</p></body>" },
+      { "title": "New", "url": "https://b.example/pluto", "body": "<body><p>Pluto is a dwarf planet since the 2006 reclassification, not a full planet.</p></body>" }
+    ],
+    "judge": { "verdict": "Partially supported", "citeAll": true, "stance": "supports", "explanation": "Evidence pulls both ways across dates." } },
+  { "label": "insufficient", "claim": "The village of Upper Snelgrove brewed exactly 41 barrels of ale in March 1731.", "expected": ["Unverifiable"],
+    "pages": [
+      { "title": "A", "url": "https://a.example/cook", "body": "<body><p>Only cooking recipes here, nothing else at all today.</p></body>" },
+      { "title": "B", "url": "https://b.example/cook", "body": "<body><p>Gardening notes for spring planting fill this page entirely.</p></body>" }
+    ] },
+  { "label": "insufficient", "claim": "A scientific study proved that a supplement increases intelligence by 40 percent in adults.", "expected": ["Unverifiable", "Partially supported", "Contradicted"],
+    "pages": [
+      { "title": "A", "url": "https://a.example/supp", "body": "<body><p>Researchers study whether a supplement affects intelligence in adults; results are mixed and no 40 percent finding exists.</p></body>" },
+      { "title": "B", "url": "https://b.example/supp", "body": "<body><p>Trials of the supplement and intelligence in adults show small mixed effects, nothing near 40 percent.</p></body>" }
+    ],
+    "judge": { "verdict": "Unverifiable", "citeAll": false, "stance": "supports", "explanation": "Passages do not settle the 40 percent claim." } },
+  { "label": "non-verifiable", "claim": "I think this is the finest excerpt ever written on the subject.", "expected": ["Not fact-checkable"] },
+  { "label": "non-verifiable", "claim": "This will be the best ever phone ever made.", "expected": ["Not fact-checkable"] },
+  { "label": "time-sensitive", "claim": "Daylight saving time began on March 9 in 2025 in the United States.", "expected": ["Supported", "Partially supported"],
+    "pages": [
+      { "title": "A", "url": "https://a.example/dst", "body": "<body><p>Daylight saving time began on March 9 in 2025 in the United States at 2am.</p></body>" },
+      { "title": "B", "url": "https://b.example/dst", "body": "<body><p>Federal calendars mark March 9, 2025 as the spring forward date when American clocks advance one hour.</p></body>" }
+    ],
+    "judge": { "verdict": "Supported", "citeAll": true, "stance": "supports", "explanation": "Both passages support it." } },
+  { "label": "failed-api", "claim": "Water boils at 100 degrees Celsius at sea level.", "expected": ["Unverifiable"], "failSearch": true },
+  { "label": "fabricated-citation", "claim": "Water boils at 100 degrees Celsius at sea level.", "expected": ["Unverifiable"],
+    "pages": [
+      { "title": "A", "url": "https://a.example/water", "body": "<body><p>Water boils at 100 degrees Celsius at sea level in kitchens every day.</p></body>" },
+      { "title": "B", "url": "https://b.example/water", "body": "<body><p>At sea level, water boils at 100 degrees Celsius according to lab tables.</p></body>" }
+    ],
+    "judge": { "verdict": "Supported", "citeAll": false, "stance": "supports", "explanation": "Judge cites nothing." } },
+  { "label": "wrong-page", "claim": "Apollo 11 landed on the Moon in 1969.", "expected": ["Unverifiable"],
+    "pages": [
+      { "title": "A", "url": "https://a.example/cook", "body": "<body><p>Only cooking recipes here, nothing else at all today.</p></body>" },
+      { "title": "B", "url": "https://b.example/cook", "body": "<body><p>Gardening notes for spring planting fill this page entirely.</p></body>" }
+    ] },
+  { "label": "media-image", "claim": "Water boils at 100 degrees Celsius at sea level.", "expected": ["Supported", "Partially supported"],
+    "source": "image-caption",
+    "pages": [
+      { "title": "A", "url": "https://a.example/water", "body": "<body><p>Water boils at 100 degrees Celsius at sea level in kitchens every day.</p></body>" },
+      { "title": "B", "url": "https://b.example/water", "body": "<body><p>At sea level, water boils at 100 degrees Celsius according to lab tables.</p></body>" }
+    ],
+    "judge": { "verdict": "Supported", "citeAll": true, "stance": "supports", "explanation": "Both passages support the captioned sign." } },
+  { "label": "media-audio", "claim": "Apollo 11 landed on the Moon in 1969.", "expected": ["Supported", "Partially supported"],
+    "source": "audio-transcript",
+    "pages": [
+      { "title": "A", "url": "https://a.example/apollo", "body": "<body><p>Apollo 11 landed on the Moon in 1969 during the historic mission.</p></body>" },
+      { "title": "B", "url": "https://b.example/apollo", "body": "<body><p>NASA records show Apollo 11 landed on the Moon in 1969 with astronauts aboard.</p></body>" }
+    ],
+    "judge": { "verdict": "Supported", "citeAll": true, "stance": "supports", "explanation": "Both passages support the transcribed speech." } },
+  { "label": "media-video", "claim": "Photosynthesis converts carbon dioxide and water into glucose using sunlight.", "expected": ["Supported", "Partially supported"],
+    "source": "video-transcript",
+    "pages": [
+      { "title": "A", "url": "https://a.example/photo", "body": "<body><p>Photosynthesis converts carbon dioxide and water into glucose using sunlight in green leaves.</p></body>" },
+      { "title": "B", "url": "https://b.example/photo", "body": "<body><p> textbooks: photosynthesis converts carbon dioxide and water into glucose using sunlight for plant energy.</p></body>" }
+    ],
+    "judge": { "verdict": "Supported", "citeAll": true, "stance": "supports", "explanation": "Both passages support the clip transcript." } }
+]

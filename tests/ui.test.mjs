@@ -52,7 +52,7 @@ test('verify request always clears the busy state and reports failures', () => {
 });
 
 test('main view is one investigate panel: mode switch, central upload, debate thread', () => {
-  for (const marker of ['Check a claim', 'Check a book', 'data-upload', 'data-debate', 'Question this answer', 'Earlier in this conversation']) {
+  for (const marker of ['Check a claim', 'Check an excerpt', 'data-upload', 'data-debate', 'Question this answer', 'Earlier in this conversation']) {
     assert.ok(page.includes(marker), marker);
   }
   assert.equal(page.split('Ask a source anything').length - 1, 1, 'omnibar keeps exactly one ask entry point');
@@ -72,7 +72,10 @@ test('main check view offers document theory investigation with an inline verdic
   const libraryAt = page.indexOf('Workspace Library & Past Checks');
   assert.ok(assessAt > checkAt && assessAt < libraryAt, 'assess form lives on the main check view');
   assert.ok(page.includes('data-assess-inline'), 'assess verdict renders inline on the main view');
-  assert.match(page, /Choose a document|Pick a document/, 'main view lets the reader pick the document');
+  const block = page.slice(assessAt, assessAt + 3000);
+  assert.ok(!block.includes('Pick a file'), 'no duplicate file picker in the ask form');
+  assert.ok(!block.includes('Choose a document'), 'no document dropdown in the ask form');
+  assert.ok(block.includes('assessDoc'), 'ask form asks the active source');
 });
 
 test('document view offers reader-directed investigation controls', () => {
@@ -88,10 +91,10 @@ test('library has no second ask form, only a link to the main ask tool', () => {
   assert.equal(page.split('data-assess-form').length - 1, 1, 'exactly one ask form, on the main view');
   assert.equal(page.split('Dictate a theory').length - 1, 1, 'theory dictation exists once, on the main ask form');
   assert.ok(page.includes('data-ask-link'), 'library document view links to the ask tool instead of copying it');
-  assert.match(page, /setAssessDocId\(doc\.id\)/, 'the link preselects the opened document');
+  assert.match(page, /setDoc\(doc\)/, 'the link keeps the opened document');
   assert.match(page, /setTool\('document'\)/, 'the link opens the ask tool');
   assert.match(page, /setTab\('check'\)/, 'the link returns to the main check view');
-  assert.ok(!page.includes('Investigate a claim or theory from this book'), 'no duplicated investigate box in the library');
+  assert.ok(!page.includes('Investigate a claim or theory from this excerpt'), 'no duplicated investigate box in the library');
   assert.ok(!page.includes('Investigate a claim or theory from this page'), 'no duplicated investigate box for websites');
 });
 
@@ -113,15 +116,15 @@ test('website tool accepts a URL and library shows the source for website docume
   assert.match(page, /setTool\('website'\)/);
   assert.ok(!page.includes('<span>Check a website</span>'), 'no redundant website entry in the nav');
   assert.ok(page.includes('sourceUrl'), 'library keeps the website source link');
-  assert.match(page, /kind === 'website'|kind !== 'book'|'website'/, 'library marks website documents');
+  assert.match(page, /kind === 'website'|kind !== 'excerpt'|'website'/, 'library marks website documents');
 });
 
-test('asking about claims works for websites: picker labels them, verdict names the page', () => {
-  assert.ok(page.includes('data-assess-form'), 'ask tool still covers books and websites');
-  assert.match(page, /\(website\)|Website ·|kind === 'website' \?/, 'picker or cards label website sources');
+test('asking about claims works for websites: verdict names the page', () => {
+  assert.ok(page.includes('data-assess-form'), 'ask tool still covers excerpts and websites');
+  assert.match(page, /\(website\)|Website ·|kind === 'website' \?/, 'cards label website sources');
   assert.ok(page.includes('On this page'), 'website verdict passages are named as page passages');
   assert.ok(page.includes('Ask this page a question'), 'website detail links to the ask tool for the page');
-  assert.ok(page.includes('Web page'), 'website claim rows say web page instead of a book page');
+  assert.ok(page.includes('Web page'), 'website claim rows say web page instead of an excerpt page');
 });
 
 test('past checks filter has no duplicate ask option', () => {
@@ -130,7 +133,7 @@ test('past checks filter has no duplicate ask option', () => {
   const filterSelect = page.slice(filterAt, page.indexOf('</select>', filterAt));
   assert.ok(!filterSelect.includes('Ask a source anything'), 'no ask option in the tool filter');
   assert.ok(!filterSelect.includes('value="question"'), 'no question workflow value in the filter');
-  for (const marker of ['Any tool', 'Check a claim', 'Book', 'Website']) {
+  for (const marker of ['Any tool', 'Check a claim', 'Excerpt', 'Website']) {
     assert.ok(page.includes(marker), marker);
   }
 });
@@ -225,7 +228,7 @@ test('brand is the supplied logo and relevant components carry proper svg icons'
   assert.ok(page.includes('/truthlens-logo.png'), 'header uses the supplied logo file');
   assert.ok(page.includes('alt="TruthLens AI"'), 'logo keeps an accessible name');
   assert.ok(layout.includes('/truthlens-logo.png'), 'logo is the favicon too');
-  for (const icon of ['claim', 'book', 'website', 'question', 'library', 'history', 'search', 'verify']) {
+  for (const icon of ['claim', 'excerpt', 'website', 'question', 'library', 'history', 'search', 'verify']) {
     assert.ok(page.includes(`<Icon name="${icon}"`), `Icon name="${icon}"`);
   }
   assert.ok(page.includes('data-icon={name}'), 'Icon renders data-icon from its name');
@@ -321,13 +324,13 @@ test('dictate a theory is also a mic icon inside its box', () => {
   assert.ok((page.match(/variant="inline"/g) || []).length >= 2, 'claim and theory both use the inline mic');
 });
 
-test('icons also live inside the book, website, question, and library panes', () => {
+test('icons also live inside the excerpt, website, question, and library panes', () => {
   for (const icon of ['upload', 'refresh', 'pause', 'play', 'back']) {
     assert.ok(page.includes(`<Icon name="${icon}"`), `Icon name="${icon}"`);
   }
   assert.ok((page.match(/<Icon name="verify"/g) || []).length >= 3, 'verify icon repeats on verify actions');
   assert.ok((page.match(/<Icon name="question"/g) || []).length >= 3, 'question icon repeats on ask actions');
-  assert.ok((page.match(/<Icon name="book"/g) || []).length >= 2, 'book icon repeats inside the book pane');
+  assert.ok((page.match(/<Icon name="excerpt"/g) || []).length >= 2, 'excerpt icon repeats inside the excerpt pane');
   assert.ok((page.match(/<Icon name="website"/g) || []).length >= 2, 'website icon repeats inside the website pane');
   assert.ok((page.match(/<Icon name="search"/g) || []).length >= 2, 'search icon repeats on opposing-evidence actions');
 });
@@ -491,7 +494,7 @@ test('redesign: home ticker mirrors the mockup KPI strip; the library vault owns
 });
 
 test('home: Home is the default landing page with its own navigation item', () => {
-  assert.match(page, /useState\('home'\)|\[tab, setTab\] = useState\('home'\)/, 'home is the initial tab');
+  assert.match(page, /\[tab, setTab\] = useState\((\(\) =>[\s\S]{0,200}\|\| 'home'|'home')\);/, 'home is the initial tab');
   assert.ok(page.includes("setTab('home')"), 'navigation can open Home');
   assert.ok(page.includes('data-home'), 'home view anchor present');
   assert.match(page, />Home</, 'nav labels the home view');
@@ -565,7 +568,7 @@ test('multimodal cards sit on one line with a very large icon each', () => {
   const css = readFileSync(new URL('../app/globals.css', import.meta.url), 'utf8');
   assert.match(css, /\.format-grid\s*\{[^}]*grid-template-columns:[^;]*repeat\(4/, 'four format cards share one row on desktop');
   assert.match(css, /\.format-icon \.icon\s*\{[^}]*width:\s*(3[2-9]|[4-9][0-9])px/, 'format icons are very large');
-  for (const icon of ['book', 'website', 'image', 'video']) {
+  for (const icon of ['excerpt', 'website', 'image', 'video']) {
     assert.ok(page.includes(`data-format-icon="${icon}"`), `format icon ${icon}`);
   }
 });
@@ -681,7 +684,7 @@ test('document panel has no duplicate View or Remove actions and its Ask box car
   const panel = page.slice(panelAt, panelAt + 4000);
   assert.ok(!panel.includes('View file'), 'panel does not repeat View file');
   assert.ok(!panel.includes('Remove file'), 'panel does not repeat Remove file');
-  assert.ok(panel.includes('Ask this book a question') || panel.includes('Ask this page a question'), 'ask action remains in the panel');
+  assert.ok(panel.includes('Ask this excerpt a question') || panel.includes('Ask this page a question'), 'ask action remains in the panel');
   assert.ok((page.match(/value=\{theory\}/g) || []).length >= 2, 'panel input and tool textarea share the theory state, so text carries over');
   assert.ok(panel.includes('value={theory}'), 'panel ask input is bound to the shared theory state');
 });
@@ -741,7 +744,7 @@ test('plain English: hard jargon and trial metaphors stay off the website', () =
   for (const hard of ['Cross-examine', 'Put a claim on trial', 'Citation stance coverage', 'Atomic elements', 'Falsifier:', 'Confirmer:', 'Evidence Forensics', 'proposition by proposition', 'Investigation history']) {
     assert.ok(!page.includes(hard), hard);
   }
-  for (const plain of ['Check a claim', 'Check a book', 'Inspect URL', 'Past checks', 'Evidence for the claim', 'Evidence against the claim', 'What would prove it wrong:']) {
+  for (const plain of ['Check a claim', 'Check an excerpt', 'Inspect URL', 'Past checks', 'Evidence for the claim', 'Evidence against the claim', 'What would prove it wrong:']) {
     assert.ok(page.includes(plain), plain);
   }
 });
@@ -750,7 +753,7 @@ test('switching accounts clears the previous account workspace', () => {
   const authStart = page.indexOf('async function auth(');
   const authEnd = page.indexOf('async function verify()');
   const authBody = page.slice(authStart, authEnd);
-  for (const reset of ['setDoc(null)', 'setSelected(null)', 'setChatMessages([])', 'setChatContext(null)', "setAssessDocId('')", 'setResultPopup(null)']) {
+  for (const reset of ['setDoc(null)', 'setSelected(null)', 'setChatMessages([])', 'setChatContext(null)', 'setAssessResult(null)', 'setResultPopup(null)']) {
     assert.ok(authBody.includes(reset), `sign-in/sign-out must clear ${reset}`);
   }
 });
@@ -787,8 +790,8 @@ test('oversize uploads are refused before the request is sent', () => {
 
 test('deleting a file clears assess and chat pointers to it', () => {
   const start = page.indexOf('async function removeDocument()');
-  const remove = page.slice(start, start + 900);
-  assert.ok(remove.includes("if (assessDocId === removedId) setAssessDocId('')"), 'assess selector drops the deleted file');
+  const remove = page.slice(start, start + 1600);
+  assert.ok(remove.includes('assessTarget?.docId === removedId'), 'assess result drops the deleted file');
   assert.ok(remove.includes('chatContext?.docId === removedId'), 'chat context drops the deleted file');
 });
 
@@ -815,6 +818,13 @@ test('challenge directions wait while any check is busy', () => {
   assert.ok(page.includes("disabled={!ready || !!busy}"), 'five-way buttons disable during chat and challenge work');
 });
 
+test('chat challenge failure names the HTTP status when the body carries no error', () => {
+  const start = page.indexOf('async function runChatChallenge');
+  assert.ok(start !== -1, 'runChatChallenge exists');
+  const block = page.slice(start, start + 2000);
+  assert.ok(block.includes('HTTP ${r.status}'), 'empty-body failure reports the status instead of a bare generic line');
+});
+
 test('report download link enters the document before it is clicked', () => {
   assert.ok(page.includes('document.body.appendChild(a)'), 'download anchor is attached so Firefox follows it');
 });
@@ -828,7 +838,7 @@ test('delete confirmation compares trimmed titles', () => {
 });
 
 test('home mirrors the design mockup sections and copy', () => {
-  for (const marker of ['LIVE EMPIRICAL PROTOCOL', 'Do not just read it. Check it.', 'Type Claim', 'Attach File', 'Inspect URL', 'TRY ONE', 'Architecture of Integrity', 'We never collapse complex evidence into a single reductive truth percentage.', 'Step-by-step uncompromised empirical verification procedure.', 'Who uses TruthLens', 'Same evidence for all', 'Workflow: Newsroom Pre-Pub', 'Workflow: Literature Review', 'Workflow: Academic Inquiry', 'Multimodal Ingestion', 'Documents & Books', 'Websites & URLs', 'Image OCR & Visuals', 'Audio & Video', 'Find claims', 'Strip prompts', 'New Verification', 'META API', 'material-symbols-outlined', '/mockup/img4.jpg', '/mockup/researchers.jpg', '/mockup/students.jpg', 'Workspace Activity', 'Inspect Claim']) {
+  for (const marker of ['LIVE EMPIRICAL PROTOCOL', 'Do not just read it. Check it.', 'Type Claim', 'Attach File', 'Inspect URL', 'TRY ONE', 'Architecture of Integrity', 'We never collapse complex evidence into a single reductive truth percentage.', 'Step-by-step uncompromised empirical verification procedure.', 'Who uses TruthLens', 'Same evidence for all', 'Workflow: Newsroom Pre-Pub', 'Workflow: Literature Review', 'Workflow: Academic Inquiry', 'Multimodal Ingestion', 'Documents & Excerpts', 'Websites & URLs', 'Image OCR & Visuals', 'Audio & Video', 'Find claims', 'Strip prompts', 'New Verification', 'META API', 'material-symbols-outlined', '/mockup/img4.jpg', '/mockup/researchers.jpg', '/mockup/students.jpg', 'Workspace Activity', 'Inspect Claim']) {
     assert.ok(page.includes(marker), `mockup element present: ${marker}`);
   }
   assert.ok(!page.includes('data-workspace-hero'), 'workspace activity is gone from home');
@@ -869,7 +879,7 @@ test('library reads as a dossier vault: header, stats, cards, claims feed', () =
   }
   assert.ok(!page.includes('Triple Adversarial Consensus Model'), 'triad consensus section is removed');
   assert.ok(!page.includes('Three Checks of the Same Evidence. No Ambiguity.'), 'triad heading is removed');
-  assert.ok(page.includes('Books & Manuscripts') || page.includes('Books &amp; Manuscripts'), 'vault tabs name books');
+  assert.ok(page.includes('Excerpts & Manuscripts') || page.includes('Excerpts &amp; Manuscripts'), 'vault tabs name excerpts');
   assert.ok(page.includes('Media & Scans') || page.includes('Media &amp; Scans'), 'vault tabs name scans');
 });
 
@@ -908,4 +918,12 @@ test('vault source cards scroll vertically and open on card click', () => {
   assert.match(css, /\.vault-cards\s*\{[^}]*max-height/, 'cards grid caps height so many sources scroll inside it');
   assert.match(css, /\.vault-card[^}]*cursor:\s*pointer/, 'cards look clickable');
   assert.match(page, /<article[^>]*vault-card[^>]*onClick/, 'whole card opens on click, not just the title');
+});
+
+test('library document view has a clear back button to the source list', () => {
+  const vaultAt = page.indexOf('data-vault');
+  const historyAt = page.indexOf('data-history', vaultAt);
+  const libraryBlock = page.slice(vaultAt, historyAt);
+  assert.ok(libraryBlock.includes('Back to sources'), 'doc detail offers a back to sources button');
+  assert.ok(libraryBlock.includes('setDoc(null)'), 'back clears the open document');
 });

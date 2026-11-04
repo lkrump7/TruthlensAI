@@ -1,16 +1,16 @@
 import './globals.css';
 export const metadata = {
   title: 'TruthLens AI — Check the claims',
-  description: 'Check claims, books, and websites. See the evidence behind each verdict.',
+  description: 'Check claims, excerpts, and websites. See the evidence behind each verdict.',
   icons: { icon: '/truthlens-logo.png', apple: '/truthlens-logo.png' },
   manifest: '/manifest.webmanifest',
   openGraph: {
     title: 'TruthLens AI — Check the claims',
-    description: 'Check claims, books, and websites. See the evidence behind each verdict.',
+    description: 'Check claims, excerpts, and websites. See the evidence behind each verdict.',
     type: 'website',
     images: ['/truthlens-logo.png'],
   },
-  twitter: { card: 'summary', title: 'TruthLens AI — Check the claims', description: 'Check claims, books, and websites. See the evidence behind each verdict.' },
+  twitter: { card: 'summary', title: 'TruthLens AI — Check the claims', description: 'Check claims, excerpts, and websites. See the evidence behind each verdict.' },
   robots: 'index, follow',
 };
 export const viewport = { themeColor: '#090D16', width: 'device-width', initialScale: 1 };

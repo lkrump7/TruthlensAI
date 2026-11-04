@@ -27,10 +27,10 @@ test('report puts high-impact disputed claims first and never emits a truth scor
   assert.equal('truthScore' in r, false);
 });
 
-test('contradiction map links opposing claims from different books by topic', () => {
+test('contradiction map links opposing claims from different excerpts by topic', () => {
   const docs = [
-    { id: 'd1', title: 'Book A', claims: [{ id: 'a', text: 'Artificial intelligence increases employment across the economy.', verdict: 'Supported', page: 1 }] },
-    { id: 'd2', title: 'Book B', claims: [{ id: 'b', text: 'Artificial intelligence reduces employment across the economy.', verdict: 'Supported', page: 4 }] },
+    { id: 'd1', title: 'Excerpt A', claims: [{ id: 'a', text: 'Artificial intelligence increases employment across the economy.', verdict: 'Supported', page: 1 }] },
+    { id: 'd2', title: 'Excerpt B', claims: [{ id: 'b', text: 'Artificial intelligence reduces employment across the economy.', verdict: 'Supported', page: 4 }] },
   ];
   const map = buildContradictionMap(docs);
   assert.ok(map.length >= 1);
@@ -38,7 +38,7 @@ test('contradiction map links opposing claims from different books by topic', ()
   assert.equal(map[0].positions.length, 2);
   const unverified = buildContradictionMap(docs.map((d) => ({ ...d, claims: d.claims.map((c) => ({ ...c, verdict: 'Unverifiable' })) })));
   assert.equal(unverified[0].verifiedDisagreement, false);
-  assert.deepEqual(map[0].positions.map((p) => p.docTitle).sort(), ['Book A', 'Book B']);
+  assert.deepEqual(map[0].positions.map((p) => p.docTitle).sort(), ['Excerpt A', 'Excerpt B']);
 });
 
 test('recheck appends a verdict history without losing the original assessment', async () => {

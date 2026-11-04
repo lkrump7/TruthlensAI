@@ -25,13 +25,29 @@ export function resampleTo(samples, fromRate, toRate) {
   }
   return out;
 }
+export function micConstraintsFor(devices) {
+  const found = Array.isArray(devices) ? devices.find((d) => d && d.kind === 'audioinput' && d.deviceId) : null;
+  if (found) return { audio: { deviceId: { exact: found.deviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } };
+  return { audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } };
+}
+export function micErrorMessage(err) {
+  if (typeof window !== 'undefined' && window.isSecureContext === false) return 'Mic needs a secure connection (HTTPS or localhost). Type instead, or reopen this page over HTTPS.';
+  const name = err?.name || '';
+  if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'No microphone found. Plug one in, or type.';
+  if (name === 'NotAllowedError' || name === 'SecurityError') return 'The mic is blocked. Click the site icon in the address bar, allow the mic, then try again. Or type.';
+  if (name === 'NotReadableError' || name === 'AbortError') return 'The mic is busy. Close the other app using it, or type.';
+  return 'The mic is blocked. Allow it in your browser, or type.';
+}
 export function MicButton({ onText, label = 'Dictate', variant = 'button' }) {
   const [state, setState] = useState('idle');
   const [note, setNote] = useState('');
   const rec = useRef(null);
+  const starting = useRef(false);
+  const stopRequested = useRef(false);
   const stopTimer = useRef(null);
   const transcribeAbort = useRef(null);
   useEffect(() => () => {
+    stopRequested.current = true;
     if (stopTimer.current) { clearTimeout(stopTimer.current); stopTimer.current = null; }
     if (transcribeAbort.current) { try { transcribeAbort.current.abort(); } catch { /* already done */ } transcribeAbort.current = null; }
     const r = rec.current;
@@ -42,32 +58,70 @@ export function MicButton({ onText, label = 'Dictate', variant = 'button' }) {
     r.ctx.close().catch(() => {});
   }, []);
   async function start() {
-    if (rec.current) return;
+    if (rec.current || starting.current) return;
     setNote('');
-    if (!navigator?.mediaDevices?.getUserMedia || typeof AudioContext === 'undefined') return setNote('This browser cannot record your voice. Please type.');
+    const AudioCtor = typeof window !== 'undefined' ? (window.AudioContext || window.webkitAudioContext) : undefined;
+    if (!navigator?.mediaDevices?.getUserMedia || typeof AudioCtor === 'undefined') return setNote('This browser cannot record your voice. Please type.');
+    starting.current = true;
+    stopRequested.current = false;
+    let stream = null;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const ctx = new AudioContext();
-      const source = ctx.createMediaStreamSource(stream);
-      const processor = ctx.createScriptProcessor(4096, 1, 1);
-      const frames = [];
-      processor.onaudioprocess = (e) => frames.push(new Float32Array(e.inputBuffer.getChannelData(0)));
-      // ScriptProcessorNodes only fire when connected downstream, but routing
-      // the live mic to the speakers feeds back. A zero-gain node keeps the
-      // callback alive while staying silent.
-      const silent = ctx.createGain();
-      silent.gain.value = 0;
-      source.connect(processor); processor.connect(silent); silent.connect(ctx.destination);
-      rec.current = { stream, ctx, processor, source, silent, frames, rate: ctx.sampleRate };
-      setState('listening');
-      if (stopTimer.current) clearTimeout(stopTimer.current);
-      stopTimer.current = setTimeout(() => { stopTimer.current = null; void stop(); }, 60000);
-    } catch { setNote('The mic is blocked. Allow it in your browser, or type.'); }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(micConstraintsFor());
+      } catch (e) {
+        const name = e?.name || '';
+        if (name !== 'NotFoundError' && name !== 'OverconstrainedError') throw e;
+        let devices = [];
+        try {
+          if (typeof navigator.mediaDevices.enumerateDevices === 'function') devices = await navigator.mediaDevices.enumerateDevices();
+        } catch { devices = []; }
+        const retry = micConstraintsFor(devices);
+        if (!retry?.audio?.deviceId) throw e;
+        stream = await navigator.mediaDevices.getUserMedia(retry);
+      }
+      const ctx = new AudioCtor();
+      try {
+        if (typeof ctx.resume === 'function' && ctx.state === 'suspended') await ctx.resume();
+        const source = ctx.createMediaStreamSource(stream);
+        const processor = ctx.createScriptProcessor(4096, 1, 1);
+        const frames = [];
+        processor.onaudioprocess = (e) => frames.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+        // ScriptProcessorNodes only fire when connected downstream, but routing
+        // the live mic to the speakers feeds back. A zero-gain node keeps the
+        // callback alive while staying silent.
+        const silent = ctx.createGain();
+        silent.gain.value = 0;
+        source.connect(processor); processor.connect(silent); silent.connect(ctx.destination);
+        // The permission prompt can outlast a tap: pointerup fires stop()
+        // while getUserMedia is still pending, so stop() no-ops on the empty
+        // ref and start() would otherwise leave the mic stuck open.
+        if (stopRequested.current) {
+          try { processor.disconnect(); source.disconnect(); silent?.disconnect(); } catch { /* already closed */ }
+          stream.getTracks().forEach((t) => t.stop());
+          ctx.close().catch(() => {});
+          stream = null;
+          return;
+        }
+        rec.current = { stream, ctx, processor, source, silent, frames, rate: ctx.sampleRate };
+        stream = null;
+        setState('listening');
+        if (stopTimer.current) clearTimeout(stopTimer.current);
+        stopTimer.current = setTimeout(() => { stopTimer.current = null; void stop(); }, 60000);
+      } catch (setupErr) {
+        try { await ctx.close(); } catch { /* already closed */ }
+        throw setupErr;
+      }
+    } catch (e) { setNote(micErrorMessage(e)); }
+    finally {
+      if (stream) stream.getTracks().forEach((t) => t.stop());
+      starting.current = false;
+    }
   }
   async function stop() {
     // Guard on the ref, not render-time state: the 60s auto-stop timer
     // captures this closure before setState('listening') re-renders,
     // so a state check here would no-op the timer every time.
+    stopRequested.current = true;
     if (!rec.current) return;
     if (stopTimer.current) { clearTimeout(stopTimer.current); stopTimer.current = null; }
     const { stream, ctx, processor, source, silent, frames, rate } = rec.current;
@@ -111,7 +165,7 @@ export function MicButton({ onText, label = 'Dictate', variant = 'button' }) {
           <span className="mic-sr">{state === 'listening' ? 'Listening. Release to fill the box.' : state === 'working' ? 'Transcribing.' : label}</span>
         </button>
         {state !== 'idle' && <span className="mic-live" role="status">{state === 'listening' ? 'Listening… release to fill the box' : 'Transcribing…'}</span>}
-        {note && <span className="mic-note" role="status">{note}</span>}
+        {note && <span className="mic-note" role="status">{note}<button type="button" className="mic-note-close" aria-label="Dismiss microphone message" onClick={() => setNote('')}>Dismiss</button></span>}
       </span>
     );
   }
@@ -121,7 +175,7 @@ export function MicButton({ onText, label = 'Dictate', variant = 'button' }) {
         {state === 'listening' ? 'Listening… release to fill the box' : state === 'working' ? 'Transcribing…' : label}
       </button>
       <span className="small"> Hold the button and speak. Your words go in the box. You can edit them. </span>
-      {note && <span className="small" role="status">{note}</span>}
+      {note && <span className="small" role="status">{note} <button type="button" className="mic-note-close" aria-label="Dismiss microphone message" onClick={() => setNote('')}>Dismiss</button></span>}
     </span>
   );
 }

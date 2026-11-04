@@ -143,7 +143,7 @@ Plan phase 2, Task 6.
 
 ### Section 3. Concurrency and limits
 
-These are quiet now and loud under load. Two readers on one book is
+These are quiet now and loud under load. Two readers on one excerpt is
 enough to hit them.
 
 | ID | Severity | Status | Finding |
@@ -165,7 +165,7 @@ TL-008. Duplicate claim text breaks the 20-claim cap.
 `createDocument` in `lib/documents.mjs:144` builds the auto-selected set
 from claim text. Two claims with the same text both match, so both get
 `autoSelected`. The cap in `CONFIG.MAX_CLAIMS_PER_DOCUMENT` is 20 and the
-README promises 20 deep checks per book. Duplicate text in a real book
+README promises 20 deep checks per excerpt. Duplicate text in a real excerpt
 is common, so the overrun is common too. Plan phase 3, Task 8.
 
 TL-020. Reader-pick marking saves outside the document lock.

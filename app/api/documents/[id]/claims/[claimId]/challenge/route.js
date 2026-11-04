@@ -2,6 +2,11 @@ import { challengeDocumentClaim, getDocument, CHALLENGE_KINDS } from '../../../.
 import { authEnabled, canEdit, requestUser } from '../../../../../../../lib/auth.mjs';
 import { CONFIG } from '../../../../../../../lib/config.mjs';
 
+// A follow-up re-checks the claim against fresh sources, so a slow live
+// run can hit the default function limit and surface as an empty HTTP 500.
+// Allow a minute, matching the "can take a minute" note in the UI.
+export const maxDuration = 60;
+
 export async function POST(req, { params }) {
   if (authEnabled() && !requestUser(req)) return Response.json({ error: 'Sign in first.' }, { status: 401 });
   const body = await req.json().catch(() => ({}));

@@ -123,6 +123,32 @@ test('verifyResearchedClaim forwards its signal to search and fetch collaborator
   assert.ok(fetchSignal instanceof AbortSignal, 'fetch receives the AbortSignal');
 });
 
+test('verifyResearchedClaim deduplicates repeated atomic claims and investigates once', async () => {
+  const { verifyResearchedClaim } = await import('../lib/pipeline.mjs');
+  const dup = 'Water boils at 100 degrees Celsius at sea level.';
+  let searches = 0;
+  let judges = 0;
+  const search = async () => {
+    searches++;
+    return { queries: ['q'], sources: [{ title: 'E', url: 'https://a.example/boil' }], citations: [] };
+  };
+  const fetchText = async () => '<body><p>Water boils at 100 degrees Celsius at sea level in temperature studies.</p></body>';
+  const judge = async ({ evidence }) => {
+    judges++;
+    return {
+      verdict: 'Supported', citedIds: evidence.map((e) => e.id),
+      stances: Object.fromEntries(evidence.map((e) => [e.id, 'supports'])), explanation: 'Yes.',
+    };
+  };
+  const out = await verifyResearchedClaim(`${dup} ${dup}`, {
+    search, fetchText, judge, cache: false, stabilityRuns: 1, challenge: null, nli: null,
+  });
+  assert.equal(searches, 1, `duplicate atomics run one investigation, got ${searches} searches`);
+  assert.equal(judges, 1, `duplicate atomics are judged once, got ${judges}`);
+  assert.equal(out.subclaims.length, 1, `duplicate verdicts collapse, got ${JSON.stringify(out.subclaims)}`);
+  assert.equal(out.subclaims[0].text, dup);
+});
+
 test('verifyResearchedClaim with an already-aborted signal runs no search', async () => {
   const { verifyResearchedClaim } = await import('../lib/pipeline.mjs');
   const controller = new AbortController();

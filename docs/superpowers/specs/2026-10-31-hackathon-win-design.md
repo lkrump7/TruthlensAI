@@ -58,7 +58,7 @@ order corrected same day):
    Supported claim, one Contradicted claim whose skeptic round is
    the visible turning point, and one honestly Unverifiable claim.
    Candidate claims come from `eval/claims.json` and the existing
-   demo book; the final three are pinned only after they pass in
+   demo excerpt; the final three are pinned only after they pass in
    both demo mode and live mode. The demo script in the README is
    rewritten to walk this arc in about two minutes, ending on the
    exported report a journalist could attach to a story file or a

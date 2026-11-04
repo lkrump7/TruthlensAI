@@ -104,7 +104,7 @@
   missing helper import error → helper created; triage assertion failure →
   root-caused to classifier contract, scenario corrected with ruling; 4/4
   browser failures → foreign server on 3100 (port 3300 + no-reuse fix),
-  tab-gated ingest (Check-a-book first), history-vs-dossier table confusion
+  tab-gated ingest (Check-a-excerpt first), history-vs-dossier table confusion
   (dossier path). Each fix re-ran green.
 - Final: Ruling: reviewer minors 7–10 (helper step context, stale contract
   line, duplicate `-p` flag reliance, stream-test naming) deferred as polish;

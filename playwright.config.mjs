@@ -34,5 +34,21 @@ export default defineConfig({
       TRUTHLENS_USERS_FILE: './test-results/e2e-store/users.json',
     },
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+      testIgnore: ['mic-fake-device.spec.js', 'mic-retry.spec.js'],
+    },
+    {
+      name: 'chromium-fake-mic',
+      use: {
+        ...devices['Desktop Chrome'],
+        launchOptions: {
+          args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
+        },
+      },
+      testMatch: ['mic-fake-device.spec.js', 'mic-retry.spec.js'],
+    },
+  ],
 });

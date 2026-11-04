@@ -6,6 +6,7 @@ import {
   planChunks,
   assembleAudioPages,
   audioToPages,
+  makePlaybackAudio,
   MAX_AUDIO_FILE_SECONDS,
 } from '../lib/audio.mjs';
 
@@ -78,4 +79,45 @@ test('audioToPages surfaces an ffmpeg extraction failure', async () => {
     }),
     /ffmpeg exploded/,
   );
+});
+
+test('makePlaybackAudio keeps a file with a known extension untouched', async () => {
+  const out = await makePlaybackAudio(Buffer.from('original-bytes'), {
+    ext: '.mp3',
+    probeFormat: async () => { throw new Error('should not probe'); },
+    transcode: async () => { throw new Error('should not transcode'); },
+  });
+  assert.equal(out.buffer.toString(), 'original-bytes');
+  assert.equal(out.ext, '.mp3');
+  assert.equal(out.mime, 'audio/mpeg');
+  assert.equal(out.transcoded, false);
+});
+
+test('makePlaybackAudio stores extensionless audio as a playable MP3 copy', async () => {
+  const calls = [];
+  const out = await makePlaybackAudio(Buffer.from('original-bytes'), {
+    ext: '',
+    probeFormat: async () => ({ hasAudio: true }),
+    transcode: async (buf) => { calls.push(buf.toString()); return Buffer.from('mp3-bytes'); },
+  });
+  assert.equal(calls.length, 1, 'the bytes are re-encoded once');
+  assert.equal(out.buffer.toString(), 'mp3-bytes');
+  assert.equal(out.ext, '.mp3');
+  assert.equal(out.mime, 'audio/mpeg');
+  assert.equal(out.transcoded, true);
+});
+
+test('makePlaybackAudio keeps nothing playable when the bytes hold no audio', async () => {
+  const silent = await makePlaybackAudio(Buffer.from('not-audio'), {
+    ext: '',
+    probeFormat: async () => ({ hasAudio: false }),
+    transcode: async () => { throw new Error('should not transcode'); },
+  });
+  assert.equal(silent.mime, null, 'no mime is invented for bytes that are not audio');
+  const failed = await makePlaybackAudio(Buffer.from('original-bytes'), {
+    ext: '',
+    probeFormat: async () => { throw new Error('ffprobe exploded'); },
+    transcode: async () => { throw new Error('should not transcode'); },
+  });
+  assert.equal(failed.mime, null, 'a failed probe also stores nothing rather than a mislabeled file');
 });

@@ -61,7 +61,7 @@ test('assessDocumentClaim never drops a claim that landed mid-verification', asy
   const { repository } = await import('../lib/repositories.mjs');
   const repo = repository();
   await repo.save({
-    id: 'doc-assess-race', owner: 'demo', kind: 'book', title: 'Race', createdAt: new Date().toISOString(),
+    id: 'doc-assess-race', owner: 'demo', kind: 'excerpt', title: 'Race', createdAt: new Date().toISOString(),
     pages: 1, sourcePages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }],
     chunks: [{ id: 'chunk-1', page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }],
     claims: [], status: 'ready', autoPaused: false, coverage: 0, report: null,

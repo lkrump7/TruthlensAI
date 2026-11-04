@@ -91,8 +91,8 @@ test('image upload stores the original and the media route serves it back', asyn
 test('media route 404s for unknown documents and documents without a stored original', async () => {
   const missing = await mediaGet(new Request('http://t/api/documents/doc-nope/media'), { params: { id: 'doc-nope' } });
   assert.equal(missing.status, 404);
-  const book = await createDocument({ title: 'Pasted', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
-  const noFile = await mediaGet(new Request(`http://t/api/documents/${book.id}/media`), { params: { id: book.id } });
+  const excerpt = await createDocument({ title: 'Pasted', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
+  const noFile = await mediaGet(new Request(`http://t/api/documents/${excerpt.id}/media`), { params: { id: excerpt.id } });
   assert.equal(noFile.status, 404);
   assert.match((await noFile.json()).error, /not stored/i);
 });

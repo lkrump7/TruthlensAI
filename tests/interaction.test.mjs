@@ -123,3 +123,10 @@ test('wayback: history search waits for a pause instead of fetching per keystrok
 test('wayback: first load says it is loading instead of showing an empty library', () => {
   assert.ok(page.includes('Loading your files'), 'initial loading state is written out');
 });
+
+test('debate: the interrogation input scrolls with the page instead of covering output', () => {
+  const block = (css.match(/\.arena-console\{[^}]*\}/) || [])[0] || '';
+  assert.ok(!/position:\s*sticky/.test(block), 'composer does not stick over the thread');
+  assert.ok(!/position:\s*fixed/.test(block), 'composer does not float over the thread');
+  assert.ok(!/bottom:\s*0/.test(block), 'composer does not pin to the viewport bottom');
+});

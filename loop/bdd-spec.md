@@ -8,10 +8,10 @@ is covered from Node in `tests/bdd-phase-b.test.mjs`.
 
 ## Phase A — `tests/bdd-phase-a.test.mjs` (7 scenarios)
 
-- Book upload: pasted text creates a document with preserved claims.
-- Book upload validation: empty/oversized text rejected, nothing created.
+- Excerpt upload: pasted text creates a document with preserved claims.
+- Excerpt upload validation: empty/oversized text rejected, nothing created.
 - Claim extraction: injection quarantined, never becomes a claim
-  (`bookPassagesFor` offers no quarantined passage).
+  (`excerptPassagesFor` offers no quarantined passage).
 - Verification + citations: a known claim returns a decisive demo verdict
   whose cited passages are fetched and non-empty.
 - Agent failure: research-backend failure stays `Unverifiable` / `live-failed`,

@@ -144,7 +144,7 @@ test('events route coalesces a rapid burst into one trailing send with the lates
   const { docEvents } = await import('../lib/events.mjs');
   const { repository } = await import('../lib/repositories.mjs');
   const eventsRoute = await import('../app/api/documents/[id]/events/route.js');
-  const doc = await createDocument({ title: 'Coalesce Book', owner: 'reader', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
+  const doc = await createDocument({ title: 'Coalesce Excerpt', owner: 'reader', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
   await whenAutoVerificationDone(doc.id);
   const res = await eventsRoute.GET(new Request('http://t/x'), { params: { id: doc.id } });
   assert.equal(res.status, 200);
@@ -152,9 +152,9 @@ test('events route coalesces a rapid burst into one trailing send with the lates
   const reader = res.body.getReader();
   const dec = new TextDecoder();
   const first = await reader.read();
-  assert.match(dec.decode(first.value), /Coalesce Book/, 'initial snapshot still sends immediately');
+  assert.match(dec.decode(first.value), /Coalesce Excerpt/, 'initial snapshot still sends immediately');
   const stored = await getDocument(doc.id);
-  stored.title = 'Coalesce Book v2';
+  stored.title = 'Coalesce Excerpt v2';
   await repository().save(stored);
   for (let i = 0; i < 5; i++) docEvents.emit('changed', doc.id);
   const chunks = [];
@@ -165,6 +165,6 @@ test('events route coalesces a rapid burst into one trailing send with the lates
   const text = chunks.join('');
   const sends = text.split('data: ').length - 1;
   assert.ok(sends <= 2, `burst of 5 rapid changes must coalesce, got ${sends} follow-up sends`);
-  assert.match(text.split('data: ').pop(), /Coalesce Book v2/, 'the trailing send carries the latest state');
+  assert.match(text.split('data: ').pop(), /Coalesce Excerpt v2/, 'the trailing send carries the latest state');
   await reader.cancel().catch(() => {});
 });

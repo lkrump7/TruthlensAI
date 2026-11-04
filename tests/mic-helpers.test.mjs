@@ -61,13 +61,47 @@ test('mic output stays silent to avoid speaker feedback', () => {
   assert.ok(!micSrc.includes('processor.connect(ctx.destination)'), 'no direct processor-to-speaker route');
 });
 
+test('mic start retries a listed device when the default mic is missing', () => {
+  assert.ok(micSrc.includes('enumerateDevices'), 'start enumerates devices on missing-mic errors');
+  assert.ok(micSrc.includes('micConstraintsFor'), 'retry reuses the device picker');
+  assert.match(micSrc, /NotFoundError[\s\S]{0,400}enumerateDevices/, 'missing-device error triggers enumeration');
+});
+
 test('mic start guards on the live recording ref', () => {
-  assert.ok(micSrc.includes('if (rec.current) return'), 're-entry guard reads rec.current');
+  assert.ok(micSrc.includes('if (rec.current'), 're-entry guard reads rec.current');
+  assert.ok(micSrc.includes('starting.current'), 'permission-prompt race has a starting guard');
+});
+
+test('mic start resumes audio, cleans up, and releases a tap during permission', () => {
+  assert.ok(micSrc.includes('webkitAudioContext'), 'Safari-prefixed AudioContext is supported');
+  assert.match(micSrc, /ctx\.resume\(\)/, 'suspended AudioContext is resumed');
+  assert.ok(micSrc.includes('stopRequested.current = true'), 'stop flags a pending start');
+  assert.ok(micSrc.includes('stopRequested.current)'), 'pending start checks the flag before going live');
 });
 
 test('hold-to-talk captures the pointer so release outside still stops', () => {
   assert.ok(micSrc.includes('setPointerCapture'), 'pointerdown captures the pointer');
   assert.ok(micSrc.includes('onPointerLeave'), 'pointerleave stays as backup');
+});
+
+test('mic picks an explicit device when one is listed', () => {
+  const { micConstraintsFor } = evalFns(micSrc, 'export function MicButton', ['micConstraintsFor']);
+  const withMic = micConstraintsFor([{ kind: 'audioinput', deviceId: 'abc', label: 'Built-in mic' }]);
+  assert.equal(withMic?.audio?.deviceId?.exact, 'abc', 'retry pins the listed device');
+  const generic = micConstraintsFor([]);
+  assert.ok(generic?.audio && !generic.audio.deviceId, 'no listed device stays generic');
+  assert.equal(micConstraintsFor([])?.audio?.echoCancellation, true, 'generic constraints ask for echo cancellation');
+});
+
+test('mic blocked message names the cause and can be dismissed', () => {
+  const { micErrorMessage } = evalFns(micSrc, 'export function MicButton', ['micErrorMessage']);
+  assert.match(micErrorMessage({ name: 'NotAllowedError' }), /blocked/i, 'denied permission says blocked');
+  assert.match(micErrorMessage({ name: 'NotAllowedError' }), /address bar|allow/i, 'denied permission tells how to allow');
+  assert.match(micErrorMessage({ name: 'NotFoundError' }), /no microphone/i, 'missing device says so');
+  assert.match(micErrorMessage({ name: 'NotReadableError' }), /busy|in use/i, 'busy mic says so');
+  assert.match(micErrorMessage({}), /type/i, 'fallback still offers typing');
+  assert.ok(micSrc.includes('micErrorMessage'), 'start uses the mapper, not a fixed string');
+  assert.match(micSrc, /Dismiss.*microphone|aria-label="Dismiss/, 'blocked note has a dismiss control');
 });
 
 test('challenge exposes a pure suggestKey', () => {

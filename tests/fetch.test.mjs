@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { assertPublicUrl, isPrivateHost } from '../lib/fetch.mjs';
+import { EventEmitter } from 'node:events';
+import { assertPublicUrl, dropBody, isPrivateHost } from '../lib/fetch.mjs';
 
 test('assertPublicUrl blocks IPv4-mapped IPv6 hosts with a private tail', () => {
   for (const u of ['http://[::ffff:127.0.0.1]/', 'http://[::ffff:10.0.0.5]/']) {
@@ -45,4 +46,19 @@ test('assertPublicUrl blocks shared, benchmarking and special-use IPv4 ranges', 
     assert.throws(() => assertPublicUrl(u), /blocked|private/i, u);
   }
   assert.equal(assertPublicUrl('http://100.128.0.1/a'), 'http://100.128.0.1/a');
+});
+
+test('dropBody listens for a deferred body error before cancelling, so a dropped redirect cannot crash the process', async () => {
+  // Undici emits the abort error on a destroyed body on a later tick,
+  // past any try/catch around destroy. With no listener that emission
+  // is an uncaught exception and kills the process, which is what took
+  // down a live evidence fetch on a redirect response.
+  const body = new EventEmitter();
+  let observedListeners = -1;
+  body.cancel = async () => {
+    observedListeners = body.listenerCount('error');
+    if (observedListeners > 0) body.emit('error', new Error('Request aborted'));
+  };
+  await dropBody({ body });
+  assert.ok(observedListeners > 0, 'dropBody must attach an error listener before cancelling the body');
 });

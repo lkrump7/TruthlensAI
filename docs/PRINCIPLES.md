@@ -24,7 +24,10 @@ verdicts a user can defend.
 5. **Stances come from the judge, partitions from no one else.**
    Unknown stance is shown as unclassified, never inferred from the verdict.
 6. **Corroboration before confidence.** A decisive verdict needs two
-   independent domains, or it is downgraded. One source, however good,
+   independent domains. Single-source support is downgraded to
+   `Partially supported`; single-source contradiction stays `Contradicted`
+   with a recorded solidity limit, because `Partially supported` would
+   falsely imply the claim holds in part. One source, however good,
    is one source.
 7. **Annotations never change verdicts.** Forensics discrepancies, priority
    scores, and contradiction-map links describe evidence; only the gated
@@ -36,7 +39,7 @@ verdicts a user can defend.
    revisions pass through every gate again, and both verdicts stay visible.
 10. **No single truth score.** Significance-weighted reporting shows
     consequential disputes first; an average must never hide them.
-11. **The author's stance is not evidence.** Book passages show what the
+11. **The author's stance is not evidence.** Excerpt passages show what the
     author says about a reader's theory; only independently fetched
     external evidence can move a verdict.
 12. **Not yet verified is a visible state.** Every extracted claim is
@@ -61,6 +64,6 @@ verdicts a user can defend.
 
 - More `Partially supported` and `Unverifiable` results than a typical
   fact-checker would emit.
-- Roughly 45–80 seconds and multiple model calls per live claim; books are
+- Roughly 45–80 seconds and multiple model calls per live claim; excerpts are
   capped at 20 deep verifications with the deferred count displayed.
 - Live failures produce no verdict instead of a canned one.

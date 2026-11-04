@@ -54,7 +54,7 @@ test('evidence carries neighbouring-window context for the judge, citation text 
   assert.doesNotMatch(item.passage, /marina/, 'the cited passage itself stays the extracted window');
 });
 
-test('research drops a page whose only window shares one strong term (TL-005)', async () => {
+test('research keeps a short-claim page whose only window shares one strong term (TL-005 floor narrowed)', async () => {
   const sources = [
     { title: 'Scan', url: 'https://scan.example/brain' },
     { title: 'Myth', url: 'https://myth.example/brain' },
@@ -64,7 +64,11 @@ test('research drops a page whose only window shares one strong term (TL-005)', 
     ? '<body><p>Brain imaging shows activity across the whole brain during a day of ordinary tasks and sleep.</p></body>'
     : '<body><p>Neuroscientists call the ten percent brain story a myth with no basis in scanning studies of brains.</p></body>');
   const r = await researchClaim('Humans only use 10% of their brains.', { search, fetchText, cache: false, embedTexts: async () => null, rerankTexts: async () => null });
-  assert.ok(!r.evidence.some((e) => /imaging shows activity/.test(e.passage)), 'single-overlap page is below the relevance floor');
+  // TL-005's floor dropped this page outright, but "brain" is a third of
+  // this short claim's content tokens and the passage settles it, so the
+  // floor now lets it through; one incidental word in a long claim is
+  // still dropped (see tests/research.test.mjs).
+  assert.ok(r.evidence.some((e) => /imaging shows activity/.test(e.passage)), 'single strong term on a short claim reaches the judge');
   assert.ok(r.evidence.some((e) => /ten percent brain story/.test(e.passage)), 'two-word-overlap page still contributes');
 });
 

@@ -121,9 +121,9 @@ const postExport = (body) => exportRoute.POST(new Request('http://t/api/export',
 
 async function seededDoc() {
   const pages = [];
-  for (let p = 1; p <= 60; p++) pages.push({ page: p, text: `Chapter background on page ${p} explains general context and definitions for readers of this book at length today.` });
+  for (let p = 1; p <= 60; p++) pages.push({ page: p, text: `Chapter background on page ${p} explains general context and definitions for readers of this excerpt at length today.` });
   pages[58] = { page: 59, text: 'The vaccine reduced hospitalisations by 80 percent among elderly residents in the trial.' };
-  const doc = await createDocument({ title: 'Export Book', owner: 'reader', pages });
+  const doc = await createDocument({ title: 'Export Excerpt', owner: 'reader', pages });
   await whenAutoVerificationDone(doc.id);
   return getDocument(doc.id);
 }

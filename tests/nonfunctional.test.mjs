@@ -16,21 +16,21 @@ import { verifySessionToken, createSessionToken } from '../lib/auth.mjs';
 // Budgets are set ~20x above local measurements so they catch regressions,
 // not CI noise. Local baselines (300 pages): chunk ~1ms, extract ~110ms.
 
-const bookPages = (n) => Array.from({ length: n }, (_, i) => ({
+const excerptPages = (n) => Array.from({ length: n }, (_, i) => ({
   page: i + 1,
   text: `Chapter ${i} background explains context for readers. The treatment reduced symptoms by ${20 + (i % 50)} percent among patients in the trial during 2019. Water boils at 100 degrees Celsius at sea level in kitchens everywhere.`,
 }));
 
-test('perf: chunking a 300-page book stays under budget', () => {
+test('perf: chunking a 300-page excerpt stays under budget', () => {
   const start = performance.now();
-  const chunks = chunkDocument(bookPages(300));
+  const chunks = chunkDocument(excerptPages(300));
   assert.equal(chunks.length, 300);
   assert.ok(performance.now() - start < 2000, 'chunking regressed');
 });
 
-test('perf: claim extraction on a 300-page book stays under budget', async () => {
+test('perf: claim extraction on a 300-page excerpt stays under budget', async () => {
   const start = performance.now();
-  const claims = await extractClaimsFromPages(bookPages(300), { limit: 500 });
+  const claims = await extractClaimsFromPages(excerptPages(300), { limit: 500 });
   assert.ok(claims.length > 100);
   assert.ok(performance.now() - start < 5000, 'claim extraction regressed');
 });

@@ -254,4 +254,4 @@ git commit -m "feat: eval reports verdict distributions and flip rate"
 - Stability runs default to 3. The research figure near 11 runs for 95% stability is recorded in the design as the benchmark. Three is the stated trade against live cost, and the verdict shows the count.
 - Export is Markdown. It prints cleanly, pastes into a story file or lab notes, and needs no new dependency.
 - Prompt provenance is a date string, `2026-10-31`, bumped by hand when prompts change. No prompt hashing in this pass.
-- The demo arc uses claims already covered by the demo corpus and the eval set. No new seeded claims enter the demo book in this pass.
+- The demo arc uses claims already covered by the demo corpus and the eval set. No new seeded claims enter the demo excerpt in this pass.

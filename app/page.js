@@ -8,9 +8,9 @@ import { Modal } from './components/modal.js';
 import { GaugeRing, StanceBar } from './components/forensic.js';
 import ThemeToggle from './components/theme-toggle.js';
 import { WebsiteScrutiny } from './components/website.js';
-import { buildHash, parseHash, filterClaims, createDebounced, safeResponseJson, timeAgo, claimCategory, safeHttpUrl } from '../lib/ui-state.mjs';
+import { buildHash, parseHash, filterClaims, createDebounced, safeResponseJson, timeAgo, claimCategory, safeHttpUrl, sortHistoryRowsNewestFirst } from '../lib/ui-state.mjs';
 import { shouldFallbackAfterStreamError, classifyUpload, pageLabel } from '../lib/page-logic.mjs';
-import { BookDossier } from './components/book-dossier.js';
+import { ExcerptDossier } from './components/excerpt-dossier.js';
 import { Personas } from './components/personas.js';
 import { scrutinyTelemetry } from '../lib/website-scrutiny.mjs';
 
@@ -53,9 +53,11 @@ export default function Home() {
   const [title, setTitle] = useState(''); const [text, setText] = useState(''); const [err, setErr] = useState('');
   const [user, setUser] = useState(null); const [authOn, setAuthOn] = useState(false); const [authName, setAuthName] = useState(''); const [authPass, setAuthPass] = useState('');
   const [contra, setContra] = useState([]); const [contraErr, setContraErr] = useState('');
-  const [tab, setTab] = useState('home');
-  const [assessDocId, setAssessDocId] = useState(''); const [assessResult, setAssessResult] = useState(null); const [assessTarget, setAssessTarget] = useState(null);
-  const [tool, setTool] = useState('claim'); const [turns, setTurns] = useState([]);
+  // Start from the pasted hash so the mount sync below sees the deep link
+  // instead of a blank home tab and overwriting it before the route applies.
+  const [tab, setTab] = useState(() => (typeof window === 'undefined' ? null : parseHash(window.location.hash)?.tab) || 'home');
+  const [assessResult, setAssessResult] = useState(null); const [assessTarget, setAssessTarget] = useState(null);
+  const [tool, setTool] = useState(() => (typeof window === 'undefined' ? null : parseHash(window.location.hash)?.tool) || 'claim'); const [turns, setTurns] = useState([]);
   const idemKeys = useRef({});
   const idemKeyFor = (scope) => { if (!idemKeys.current[scope]) idemKeys.current[scope] = (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`); return idemKeys.current[scope]; };
   const [theory, setTheory] = useState(''); const [challengeText, setChallengeText] = useState('');
@@ -66,18 +68,19 @@ export default function Home() {
   const [resultPopup, setResultPopup] = useState(null); const [libraryFocus, setLibraryFocus] = useState(null);
   const [inlineExpanded, setInlineExpanded] = useState(false); const [batchExpanded, setBatchExpanded] = useState({});
   const [pendingDelete, setPendingDelete] = useState(null); const [confirmTitle, setConfirmTitle] = useState(''); const [deleteErr, setDeleteErr] = useState('');
+  const [pendingHistoryDelete, setPendingHistoryDelete] = useState(null); const [historyDeleteErr, setHistoryDeleteErr] = useState('');
   const [history, setHistory] = useState([]);
   const [dragging, setDragging] = useState(false); const [loadErr, setLoadErr] = useState(''); const [docNote, setDocNote] = useState('');
   const [chatMessages, setChatMessages] = useState([]); const [chatText, setChatText] = useState(''); const [chatContext, setChatContext] = useState(null);
   const [histVerdict, setHistVerdict] = useState(''); const [histWorkflow, setHistWorkflow] = useState('');
   const [announce, setAnnounce] = useState(''); const [loaded, setLoaded] = useState(false);
   const [claimQuery, setClaimQuery] = useState(''); const [claimVerdictFilter, setClaimVerdictFilter] = useState('');
-  const [bookBucket, setBookBucket] = useState('all'); const [bookChapter, setBookChapter] = useState('all'); const [showUpload, setShowUpload] = useState(false);
+  const [excerptBucket, setExcerptBucket] = useState('all'); const [excerptChapter, setExcerptChapter] = useState('all'); const [showUpload, setShowUpload] = useState(false);
   const [uploadName, setUploadName] = useState('');
   const [vaultCat, setVaultCat] = useState('all'); const [vaultQuery, setVaultQuery] = useState('');
   const [vaultSort, setVaultSort] = useState('recent'); const [vaultPage, setVaultPage] = useState(1);
   const [vaultNote, setVaultNote] = useState(''); const [batchBusy, setBatchBusy] = useState(false);
-  const verifyAbortRef = useRef(null); const chatAbortRef = useRef(null); const fileInputRef = useRef(null); const dragCount = useRef(0);
+  const verifyAbortRef = useRef(null); const chatAbortRef = useRef(null); const deleteAbortRef = useRef(null); const fileInputRef = useRef(null); const dragCount = useRef(0);
   const claimBoxRef = useRef(null); const chatEndRef = useRef(null); const routeRef = useRef(null);
   const docsRef = useRef([]);
   docsRef.current = docs;
@@ -130,7 +133,13 @@ export default function Home() {
   useEffect(() => {
     try { const draft = localStorage.getItem('truthlens-claim-draft'); if (draft && draft.trim()) setClaim(draft); } catch { /* private mode. Typing still works. */ }
     const route = parseHash(window.location.hash);
-    if (route) { routeRef.current = route; setTab(route.tab); if (route.tool) setTool(route.tool); }
+    if (route) {
+      setTab(route.tab); if (route.tool) setTool(route.tool);
+      // Only a library doc link waits on files that have not loaded yet.
+      // Parking any other route blocks hash sync forever, so the URL would
+      // never follow the tabs after a pasted link (or a dev remount) loads.
+      if (route.tab === 'library' && route.docId) routeRef.current = route;
+    }
     const onHash = () => {
       const next = parseHash(window.location.hash);
       if (!next) return;
@@ -187,7 +196,7 @@ export default function Home() {
       // Workspace state belongs to the previous account. Clear it before
       // the new account's files load, so nothing from the last session shows.
       setDoc(null); setSelected(null); setResult(null); setBatchResults([]); setQueue([]);
-      setChatMessages([]); setChatContext(null); setAssessDocId(''); setAssessResult(null);
+      setChatMessages([]); setChatContext(null); setAssessResult(null);
       setResultPopup(null); setLibraryFocus(null); setViewerDoc(null); setInlineExpanded(false); setBatchExpanded({});
       setDocs([]); setHistory([]); setContra([]); setContraErr(''); setVaultPage(1);
       await loadSafe();
@@ -345,11 +354,24 @@ export default function Home() {
       try { const fresh = await (await fetch('/api/documents')).json().catch(() => ({})); if (fresh.documents) { setDocs(fresh.documents); const fd = fresh.documents.find((x) => x.id === d.document.id); if (fd) setDoc(fd); } } catch { /* the verdict is saved; a failed refresh must not call it failed */ }
     } catch { setErr('The check did not finish. Try again.'); } finally { setBusy(''); }
   }
+  async function dismissClaim(c, dismissed = true, ownerDoc = doc) {
+    if (!ownerDoc || !c) return setErr('Pick a claim first.');
+    setBusy('claim'); setErr('');
+    try {
+      const r = await fetch(`/api/documents/${ownerDoc.id}/claims/${c.id}/dismiss`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ dismissed }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) return setErr(d.error || 'That failed.');
+      setDoc(d.document);
+      if (!dismissed) setSelected(d.claim);
+      else if (selected?.id === c.id) setSelected(null);
+      try { const fresh = await (await fetch('/api/documents')).json().catch(() => ({})); if (fresh.documents) { setDocs(fresh.documents); const fd = fresh.documents.find((x) => x.id === d.document.id); if (fd) setDoc(fd); } } catch { /* the dismissal is saved; a failed refresh must not call it failed */ }
+    } catch { setErr('That did not finish. Try again.'); } finally { setBusy(''); }
+  }
   async function assess(targetDocId) {
     const wanted = targetDocId || doc?.id;
     const target = realDocs.find((x) => x.id === wanted) || realDocs[0];
     const targetId = target?.id;
-    if (!targetId) return setErr('Add a book or website first.');
+    if (!targetId) return setErr('Add an excerpt or website first.');
     if (!theory.trim()) return setErr('Type your question or idea first.');
     setBusy('assess'); setErr(''); setAssessResult(null);
     try {
@@ -442,7 +464,7 @@ export default function Home() {
     try {
       const r = await fetch(`/api/documents/${chatContext.docId}/claims/${chatContext.claimId}/challenge`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind, text: customText }) });
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) { setChatMessages((m) => [...m, { role: 'note', text: d.error || 'That failed. Try again.' }]); return; }
+      if (!r.ok) { setChatMessages((m) => [...m, { role: 'note', text: d.error || `That follow-up check failed (HTTP ${r.status}). It re-checks the claim against fresh sources, so a slow run can hit the limit. Try again.` }]); return; }
       setChatMessages((m) => [...m, { role: 'followup', followup: d.followup }]);
       try { const fresh = await (await fetch('/api/documents')).json().catch(() => ({})); if (fresh.documents) { setDocs(fresh.documents); const fd = fresh.documents.find((x) => x.id === chatContext.docId); if (fd) setDoc(fd); } } catch { /* the follow-up is saved; a failed refresh must not call it failed */ }
     } catch { setChatMessages((m) => [...m, { role: 'note', text: 'That did not finish. Try again.' }]); } finally { setBusy(''); }
@@ -470,6 +492,12 @@ export default function Home() {
     } catch { setViewerDoc({ ...d, contentPages: [], viewerError: 'We could not load this file.' }); } finally { setViewerBusy(false); }
   }
   function askDelete(d) { setViewerDoc(null); setPendingDelete(d); setConfirmTitle(''); setDeleteErr(''); }
+  function cancelDelete() {
+    try { deleteAbortRef.current?.abort(); } catch { /* already settled */ }
+    deleteAbortRef.current = null;
+    setPendingDelete(null); setConfirmTitle('');
+    setBusy((b) => (b === 'delete' ? '' : b));
+  }
   function closeResultPopup() {
     // The popup already showed the full dossier. Keep the page behind it
     // compressed so the claim box stays usable for the next check.
@@ -521,20 +549,54 @@ export default function Home() {
   }
   async function removeDocument() {
     if (!pendingDelete || confirmTitle.trim() !== pendingDelete.title.trim()) return;
+    try { deleteAbortRef.current?.abort(); } catch { /* superseded */ }
+    const ctrl = new AbortController();
+    deleteAbortRef.current = ctrl;
+    const timer = setTimeout(() => { try { ctrl.abort(); } catch { /* already settled */ } }, 30000);
     setBusy('delete'); setDeleteErr('');
     try {
-      const r = await fetch(`/api/documents/${pendingDelete.id}`, { method: 'DELETE' });
+      const r = await fetch(`/api/documents/${pendingDelete.id}`, { method: 'DELETE', signal: ctrl.signal });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) return setDeleteErr(d.error || 'We could not remove this file. Try again.');
       const removedId = pendingDelete.id;
       setDocs((prev) => prev.filter((x) => x.id !== removedId));
       if (doc?.id === removedId) { setDoc(null); setSelected(null); }
       if (viewerDoc?.id === removedId) setViewerDoc(null);
-      if (assessDocId === removedId) setAssessDocId('');
       if (assessTarget?.docId === removedId) { setAssessTarget(null); setAssessResult(null); }
       if (chatContext?.docId === removedId) { setChatContext(null); setChatMessages([]); }
       setPendingDelete(null); setConfirmTitle('');
-    } catch { setDeleteErr('We could not remove this file. Try again.'); } finally { setBusy(''); }
+    } catch (e) {
+      if (e?.name === 'AbortError') setDeleteErr('Removal is taking too long. The file may still be deleting. Wait a moment, then refresh the library.');
+      else setDeleteErr('We could not remove this file. Try again.');
+    } finally { clearTimeout(timer); if (deleteAbortRef.current === ctrl) deleteAbortRef.current = null; setBusy(''); }
+  }
+  function askHistoryDelete(row) {
+    if (!row?.claim?.id) return;
+    const entry = row.single ? row.claim._entry : null;
+    const groupIds = entry?.duplicates?.length
+      ? [entry.claimId, ...entry.duplicates.map((x) => x.claimId)]
+      : [row.claim.id];
+    setHistoryDeleteErr('');
+    setPendingHistoryDelete({ claimId: row.claim.id, claimIds: groupIds, text: row.claim.text, docTitle: row.doc?.title || '', count: groupIds.length });
+  }
+  async function removeHistoryEntry() {
+    if (!pendingHistoryDelete) return;
+    const ids = pendingHistoryDelete.claimIds?.length ? pendingHistoryDelete.claimIds : [pendingHistoryDelete.claimId];
+    setBusy('history-delete'); setHistoryDeleteErr('');
+    try {
+      const r = await fetch('/api/history', { method: 'DELETE', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ claimIds: ids }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) return setHistoryDeleteErr(d.error || 'We could not delete this check. Try again.');
+      const gone = new Set(d.deletedIds || (Array.isArray(d.deleted) ? d.deleted : [d.deleted].filter(Boolean)));
+      if (selected && gone.has(selected.id)) setSelected(null);
+      if (assessTarget && gone.has(assessTarget.claimId)) { setAssessTarget(null); setAssessResult(null); }
+      if (chatContext && gone.has(chatContext.claimId)) { setChatContext(null); setChatMessages([]); }
+      setPendingHistoryDelete(null);
+      setVaultPage(1);
+      setAnnounce('Check deleted.');
+      await loadSafe();
+      await loadHistory(vaultQuery, histVerdict, histWorkflow);
+    } catch { setHistoryDeleteErr('We could not delete this check. Try again.'); } finally { setBusy(''); }
   }
   async function runBatchVerify() {
     const pending = [];
@@ -577,7 +639,7 @@ export default function Home() {
       setTimeout(() => URL.revokeObjectURL(url), 5000);
     } catch { setVaultNote('Export failed. Check your connection and try again.'); }
   }
-  useEffect(() => { setClaimQuery(''); setClaimVerdictFilter(''); setBookBucket('all'); setBookChapter('all'); setShowUpload(false); }, [doc?.id]);
+  useEffect(() => { setClaimQuery(''); setClaimVerdictFilter(''); setExcerptBucket('all'); setExcerptChapter('all'); setShowUpload(false); }, [doc?.id]);
   useEffect(() => {
     if (tab === 'check' && tool === 'claim') claimBoxRef.current?.focus();
   }, [tab, tool]);
@@ -612,22 +674,22 @@ export default function Home() {
     single: true,
   }));
   const historyRows = [...vaultRows, ...singleRows];
-  const vaultDocCounts = { all: realDocs.length, book: 0, paper: 0, scan: 0 };
+  const vaultDocCounts = { all: realDocs.length, excerpt: 0, paper: 0, scan: 0 };
   realDocs.forEach((d) => { vaultDocCounts[claimCategory(d)] += 1; });
   const workflowOfRow = ({ doc, claim, single }) => {
     if (single) return claim._entry?.workflow || 'claim';
     if (claim.workflow) return claim.workflow;
     if (doc.kind === 'website') return 'website';
-    return 'book';
+    return 'excerpt';
   };
-  const vaultSearched = historyRows.filter((row) => {
+  const vaultSearched = sortHistoryRowsNewestFirst(historyRows.filter((row) => {
     const { doc, claim } = row;
     if (vaultCat !== 'all' && claimCategory(doc) !== vaultCat) return false;
     if (histVerdict && claim.verdict !== histVerdict) return false;
     if (histWorkflow && workflowOfRow(row) !== histWorkflow) return false;
     const q = vaultQuery.trim().toLowerCase();
     return !q || `${claim.text || ''} ${doc.title || ''}`.toLowerCase().includes(q);
-  });
+  }));
   const VAULT_PAGE_SIZE = 6;
   const vaultPageCount = Math.max(1, Math.ceil(vaultSearched.length / VAULT_PAGE_SIZE));
   const vaultPageSafe = Math.min(Math.max(vaultPage, 1), vaultPageCount);
@@ -640,7 +702,9 @@ export default function Home() {
   }), [realDocs, vaultSort]);
 
   const visibleClaims = useMemo(() => (doc ? filterClaims(doc.claims, { query: claimQuery, verdict: claimVerdictFilter }) : []), [doc, claimQuery, claimVerdictFilter]);
+  const dismissedClaims = useMemo(() => (doc ? (doc.claims || []).filter((c) => c?.dismissed) : []), [doc]);
   const dossierDoc = (doc && doc.kind !== 'history' && doc.kind !== 'website') ? doc : (realDocs.find((d) => d.kind !== 'website') || realDocs[0] || null);
+  const assessDoc = (doc && doc.kind !== 'history' ? doc : null) || dossierDoc || realDocs[0] || null;
   const scrutiny = useMemo(() => (doc?.kind === 'website' ? scrutinyTelemetry(doc) : null), [doc]);
   useEffect(() => {
     if (!shown) return undefined;
@@ -670,14 +734,14 @@ export default function Home() {
             <input type="password" placeholder="Password" value={authPass} onChange={(e) => setAuthPass(e.target.value)} style={{ width: 180, marginRight: 6 }} />
             <button className="btn secondary" onClick={() => auth('login')}>Sign in</button>{' '}
             <button className="btn secondary" onClick={() => auth('register')}>Register</button>
-            <span>You can also use the shared demo book.</span>
+            <span>You can also use the shared demo excerpt.</span>
           </p>}
       </div>}
       <nav className="topnav" aria-label="Main navigation">
         <div className="topnav-in">
           <button className={tab === 'home' ? 'nav-item on' : 'nav-item'} aria-current={tab === 'home' ? 'page' : undefined} onClick={() => setTab('home')}><Icon name="home" /><span>Home</span></button>
           <button className={tool === 'claim' && tab === 'check' ? 'nav-item on' : 'nav-item'} aria-current={tool === 'claim' && tab === 'check' ? 'page' : undefined} onClick={() => { setTool('claim'); setTab('check'); }}><Icon name="claim" /><span>Check a claim</span></button>
-          <button className={tool === 'document' && tab === 'check' ? 'nav-item on' : 'nav-item'} aria-current={tool === 'document' && tab === 'check' ? 'page' : undefined} onClick={() => { setTool('document'); setTab('check'); }}><Icon name="book" /><span>Check a book</span></button>
+          <button className={tool === 'document' && tab === 'check' ? 'nav-item on' : 'nav-item'} aria-current={tool === 'document' && tab === 'check' ? 'page' : undefined} onClick={() => { setTool('document'); setTab('check'); }}><Icon name="excerpt" /><span>Check an excerpt</span></button>
           <button className={tab === 'claims' ? 'nav-item on' : 'nav-item'} aria-current={tab === 'claims' ? 'page' : undefined} onClick={() => setTab('claims')}><Icon name="question" /><span>Debate a claim</span>{totalClaims ? <span className="nav-badge">{totalClaims}</span> : null}</button>
           <button className={tab === 'library' ? 'nav-item on' : 'nav-item'} aria-current={tab === 'library' ? 'page' : undefined} onClick={() => setTab('library')}><Icon name="library" /><span>Workspace Library</span>{docs.filter((d) => d.kind !== 'history').length ? <span className="nav-badge">{docs.filter((d) => d.kind !== 'history').length}</span> : null}</button>
           <button className={tab === 'history' ? 'nav-item on' : 'nav-item'} aria-current={tab === 'history' ? 'page' : undefined} onClick={() => { setTab('history'); void loadHistory(); }}><Icon name="history" /><span>Past checks</span>{history.length ? <span className="nav-badge">{history.length}</span> : null}</button>
@@ -690,7 +754,7 @@ export default function Home() {
             <section className="home-hero">
               <p className="home-eyebrow"><span className="live-dot" aria-hidden="true" />{mode === 'demo' ? 'EMPIRICAL PROTOCOL · DEMO' : 'LIVE EMPIRICAL PROTOCOL'} · Fast checks with evidence you can see</p>
               <h1 className="home-title">Do not just read it. Check it.</h1>
-              <p className="home-lede">Type or speak a claim. Or add a book or a website. TruthLens finds the claims, loads sources, and reads them. It only uses text it read. Each answer shows that text. If we cannot test a claim, we say <strong>Unverifiable</strong>. We do not guess.</p>
+              <p className="home-lede">Type or speak a claim. Or add an excerpt or a website. TruthLens finds the claims, loads sources, and reads them. It only uses text it read. Each answer shows that text. If we cannot test a claim, we say <strong>Unverifiable</strong>. We do not guess.</p>
               <div className="hero-check" data-home-check role="group" aria-label="Check tools">
                 <div className="hero-pills">
                   <button type="button" className="pill on" onClick={() => claimBoxRef.current?.focus()}><Icon name="claim" />Type Claim or speak it</button>
@@ -726,7 +790,7 @@ export default function Home() {
                   <p className="mock-kicker">Decisive Adjudication</p>
                   <h2>Each check ends in one of these verdicts</h2>
                 </div>
-                <p className="mock-side">Zero ambiguity. Every claim receives a singular categorized verdict based strictly on unabridged citations and cross-checked primary literature.</p>
+                <p className="mock-side">Each claim gets one verdict from the list below, based on the passages we fetched and read. When the evidence is too thin, the verdict says so.</p>
               </div>
               <div className="mock-tax-grid">
                 <article className="mock-tax-card"><span className="mock-tax-ic v-Supported"><span className="material-symbols-outlined">check_circle</span></span><h3>Supported</h3><p>Conclusive backing from authoritative primary records.</p></article>
@@ -743,12 +807,12 @@ export default function Home() {
                   <p className="mock-kicker">Multimodal Ingestion</p>
                   <h2>Images and video too</h2>
                 </div>
-                <p className="home-body mock-side">Add PDFs, manuscripts, voice clips, or video files up to 100MB. TruthLens extracts claims from any format and runs identical adversarial verification.</p>
+                <p className="home-body mock-side">Add a PDF or DOCX up to 15 MB, an image up to 10 MB, audio up to 50 MB, or video up to 100 MB. We pull out the text, find its claims, and check them the same way.</p>
               </div>
               <div className="format-grid">
-                <article className="format-card"><span className="format-icon tone-green" data-format-icon="book"><span className="material-symbols-outlined">description</span></span><h3>Documents & Books</h3><p>PDF, DOCX, TXT manuscripts. Claims segmented chapter by chapter.</p></article>
-                <article className="format-card"><span className="format-icon tone-cyan" data-format-icon="website"><span className="material-symbols-outlined">public</span></span><h3>Websites & URLs</h3><p>Paste single articles or full subdomains for automated extraction.</p></article>
-                <article className="format-card"><span className="format-icon tone-rose" data-format-icon="image"><span className="material-symbols-outlined">image</span></span><h3>Image OCR & Visuals</h3><p>PNG, JPEG, WebP up to 10MB. Muse Spark transcribes image claim text.</p></article>
+                <article className="format-card"><span className="format-icon tone-green" data-format-icon="excerpt"><span className="material-symbols-outlined">description</span></span><h3>Documents & Excerpts</h3><p>PDF, DOCX, TXT and MD files. Claims keep the page they came from.</p></article>
+                <article className="format-card"><span className="format-icon tone-cyan" data-format-icon="website"><span className="material-symbols-outlined">public</span></span><h3>Websites & URLs</h3><p>Give us one page at a time. We fetch it and check the claims on it.</p></article>
+                <article className="format-card"><span className="format-icon tone-rose" data-format-icon="image"><span className="material-symbols-outlined">image</span></span><h3>Image OCR & Visuals</h3><p>PNG, JPEG, WebP and GIF up to 10 MB. Muse Spark describes the image, and we check claims in that description.</p></article>
                 <article className="format-card"><span className="format-icon tone-amber" data-format-icon="video"><span className="material-symbols-outlined">videocam</span></span><h3>Audio & Video</h3><p>Speech transcription for audio (up to 50MB) and video (up to 100MB), plus 10s visual frame descriptors for video. Muse Voice Transcribe writes down the speech.</p></article>
               </div>
             </section>
@@ -757,9 +821,9 @@ export default function Home() {
               <h2 className="center">What you get with each check</h2>
               <p className="mock-sub center">TruthLens does not synthesize generic AI prose. It orchestrates a verifiable evidence pipeline with strict isolation boundaries.</p>
               <div className="mock-feat-grid">
-                <article className="mock-feat-card"><span className="mock-feat-ic blue"><span className="material-symbols-outlined">balance</span></span><h3>Evidence for and against</h3><p>We load and read each source in its full context. Every quote links to its original primary source. You inspect the exact words, not an opaque summary.</p><div className="mock-quote"><p><span>Nature Geoscience (Vol. 14)</span><span>Direct link</span></p><p className="mock-quote-text">“…empirical measurements indicate boiling equilibria occurs precisely at 99.97°C under 101.325 kPa standard atmospheres.”</p></div></article>
-                <article className="mock-feat-card"><span className="mock-feat-ic green"><span className="material-symbols-outlined">groups_3</span></span><h3>Three checks of the same evidence</h3><p>A Researcher, a Fact-checker, and an Adversarial Skeptic evaluate the data concurrently. If our autonomous agents disagree, we display the dialectic debate in full.</p><div className="mock-triad"><span className="agent-r"><span className="material-symbols-outlined">explore</span>Researcher</span><span className="agent-f"><span className="material-symbols-outlined">fact_check</span>Fact-checker</span><span className="agent-s"><span className="material-symbols-outlined">psychology_alt</span>Skeptic</span></div></article>
-                <article className="mock-feat-card"><span className="mock-feat-ic cyan"><span className="material-symbols-outlined">tune</span></span><h3>Two scores, kept apart</h3><p>How many citations clearly take a side, and how strong the underlying evidence is. We never collapse complex evidence into a single reductive truth percentage.</p><div className="mock-scores"><span><b>94%</b>Consensus Side</span><span><b>A+</b>Source Quality</span></div></article>
+                <article className="mock-feat-card"><span className="mock-feat-ic blue"><span className="material-symbols-outlined">balance</span></span><h3>Evidence for and against</h3><p>We fetch each source and read it before we cite it. Every quote links back to the page it came from, so you can read the passage yourself.</p><div className="mock-quote"><p><span>Example</span><span>Linked source</span></p><p className="mock-quote-text">The passage we relied on appears here, with a link to the page it came from.</p></div></article>
+                <article className="mock-feat-card"><span className="mock-feat-ic green"><span className="material-symbols-outlined">groups_3</span></span><h3>Two judges, in order</h3><p>Muse Spark judges first. When the case is hard or Spark and a second look split, Muse Wonder decides. We show both verdicts when they disagree.</p><div className="mock-triad"><span className="agent-r"><span className="material-symbols-outlined">explore</span>Research</span><span className="agent-f"><span className="material-symbols-outlined">fact_check</span>Muse Spark</span><span className="agent-s"><span className="material-symbols-outlined">psychology_alt</span>Muse Wonder</span></div></article>
+                <article className="mock-feat-card"><span className="mock-feat-ic cyan"><span className="material-symbols-outlined">tune</span></span><h3>Two scores, kept apart</h3><p>How many citations clearly take a side, and how strong the underlying evidence is. We never collapse complex evidence into a single reductive truth percentage.</p><div className="mock-scores"><span>Citations with a clear side</span><span>Evidence strength</span></div></article>
               </div>
             </section>
             <section className="home-section" data-how-it-works>
@@ -774,7 +838,7 @@ export default function Home() {
                 <article className="step-card"><p className="step-num">01</p><h3>Find claims</h3><p>We preserve your words verbatim. We never paraphrase or soften claims before ingestion.</p></article>
                 <article className="step-card"><p className="step-num">02</p><h3>Find evidence</h3><p>We search both sides aggressively. We load raw pages and read them. Only text read is utilized.</p></article>
                 <article className="step-card"><p className="step-num">03</p><h3>Strip prompts</h3><p>We neutralize prompt injections and hidden instructions embedded in web text before scoring.</p></article>
-                <article className="step-card"><p className="step-num">04</p><h3>Test both sides</h3><p>Our three distinct autonomous checkers pit supporting evidence against counter-hypotheses.</p></article>
+                <article className="step-card"><p className="step-num">04</p><h3>Test both sides</h3><p>Muse Spark judges the evidence for and against. Muse Wonder steps in when the first verdict needs a second look.</p></article>
                 <article className="step-card"><p className="step-num">05</p><h3>Decide</h3><p>Assign a formal taxonomy verdict with complete citations so you can scrutinize every word yourself.</p></article>
               </div>
             </section>
@@ -782,12 +846,12 @@ export default function Home() {
               <div className="mock-ticker-label">
                 <p className="mock-kicker"><span className="live-dot" aria-hidden="true" />Workspace Activity</p>
                 <h2>Your work so far</h2>
-                <p className="mock-sub">These figures reflect your local encrypted workspace vault.</p>
+                <p className="mock-sub">These figures come from the documents and checks in your workspace.</p>
               </div>
               <div className="mock-ticker-num"><b>{realDocs.length}</b><span>Documents in Library</span></div>
               <div className="mock-ticker-num"><b>{totalClaims}</b><span>Claims Checked</span></div>
               <div className="mock-ticker-num"><b>{history.length}</b><span>Saved Dossiers</span></div>
-              <div className="mock-ticker-num big"><b>100%</b><span>Auditable Proof</span></div>
+              <div className="mock-ticker-num big"><b>Cited</b><span>Every verdict links its passages</span></div>
               <div className="mock-ticker-ctas">
                 <button type="button" className="btn secondary" onClick={() => setTab('library')}><span className="material-symbols-outlined">folder_open</span>Open Library</button>
                 <button type="button" className="btn" onClick={() => { setTool('claim'); setTab('check'); }}>Inspect Claim<span className="material-symbols-outlined">arrow_forward</span></button>
@@ -833,18 +897,18 @@ export default function Home() {
             {tool === 'document' && (
               <div className="doc-ingest-bar" data-ingest-topbar>
                 <button type="button" className="btn ingest-hero" onClick={() => setShowUpload(true)} aria-label="Ingest a new manuscript"><Icon name="upload" />Ingest New Manuscript</button>
-                <p className="small">Add a book or paper to check its claims. PDF, DOCX, text, images, audio or video.</p>
+                <p className="small">Add an excerpt or paper to check its claims. PDF, DOCX, text, images, audio or video.</p>
                 {dossierDoc && showUpload && <p><button type="button" className="btn secondary" onClick={() => setShowUpload(false)}><Icon name="back" />Back to dossier</button></p>}
               </div>
             )}
             {tool === 'document' && dossierDoc && !showUpload && (
-              <BookDossier
+              <ExcerptDossier
                 doc={dossierDoc}
                 docs={realDocs.filter((d) => d.kind !== 'website')}
-                bucket={bookBucket}
-                chapter={bookChapter}
-                onBucket={setBookBucket}
-                onChapter={setBookChapter}
+                bucket={excerptBucket}
+                chapter={excerptChapter}
+                onBucket={setExcerptBucket}
+                onChapter={setExcerptChapter}
                 onSelectDoc={(id) => { const d = realDocs.find((x) => x.id === id); if (d) { setDoc(d); setSelected(null); } }}
                 onVerifyClaim={(c) => verifyClaim(c, dossierDoc)}
                 busy={busy}
@@ -865,11 +929,11 @@ export default function Home() {
                   <span className="small">PDF and DOCX up to 15 MB · Images up to 10 MB · Audio up to 50 MB and 10 minutes · Video up to 100 MB and 10 minutes</span>
                   <input ref={fileInputRef} className="file-hidden" type="file" accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.webp,.gif,.mp3,.wav,.m4a,.ogg,.oga,.opus,.flac,.aac,.mp4,.mov,.webm,.mkv,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*,audio/*,video/*" onChange={uploadFile} disabled={busy === 'doc'} />
                 </div>
-                <p className="small">Muse Spark describes images. Muse Voice Transcribe writes down speech in audio and video. We check that text like a book.</p>
+                <p className="small">Muse Spark describes images. Muse Voice Transcribe writes down speech in audio and video. We check that text like an excerpt.</p>
                 <p className="small">Or paste text:</p>
                 <input type="text" placeholder="File title" value={title} onChange={(e) => setTitle(e.target.value)} />
                 <p><textarea placeholder="Paste text here. Long text is fine." value={text} onChange={(e) => setText(e.target.value)} /></p>
-                <button className="btn secondary" onClick={addDoc} disabled={busy === 'doc'}><Icon name="book" />{busy === 'doc' ? 'Finding claims…' : 'Find claims and check'}</button>
+                <button className="btn secondary" onClick={addDoc} disabled={busy === 'doc'}><Icon name="excerpt" />{busy === 'doc' ? 'Finding claims…' : 'Find claims and check'}</button>
               </div>
             )}
             {tool === 'website' && (
@@ -885,16 +949,21 @@ export default function Home() {
               <div data-assess-form>
                 <div className="rule" />
                 <h3>Ask this source anything</h3>
-                <p className="small">Ask a book or a website a question. Or test your own idea about it. We find the parts of the text about your idea. We show what the author says. Then we check it with outside evidence.</p>
-                {realDocs.length === 0 ? <p className="small">Add a book or a website first.</p> : (
+                <p className="small">Ask an excerpt or a website a question. Or test your own idea about it. We find the parts of the text about your idea. We show what the author says. Then we check it with outside evidence.</p>
+                {realDocs.length === 0 ? (
                   <>
-                    <p><label className="small">Pick a file<br /><select value={assessDocId || realDocs[0]?.id || ''} onChange={(e) => setAssessDocId(e.target.value)} aria-label="Choose a document">{docs.filter((d) => d.kind !== 'history').map((d) => <option key={d.id} value={d.id}>{d.kind === 'website' ? `${d.title} (website)` : d.title}</option>)}</select></label></p>
+                    <p className="small">Add an excerpt or a website first.</p>
+                    <p><button type="button" className="btn secondary" onClick={() => { setShowUpload(true); document.querySelector('[data-upload]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}><Icon name="upload" />Add a file</button>{' '}<button type="button" className="btn secondary" onClick={() => setTool('website')}><Icon name="website" />Inspect a URL</button></p>
+                  </>
+                ) : (
+                  <>
+                    <p className="small">Asking: <strong>{assessDoc?.title || 'this source'}</strong> To ask a different file, open it in the dossier above or in the Library.</p>
                     <div className="input-with-mic">
-                      <textarea placeholder="For example: The dam was built for votes, not for safety." value={theory} onChange={(e) => setTheory(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && busy !== 'assess') { e.preventDefault(); void assess(assessDocId || realDocs[0]?.id); } }} aria-label="Your question or idea" />
+                      <textarea placeholder="For example: The dam was built for votes, not for safety." value={theory} onChange={(e) => setTheory(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && busy !== 'assess') { e.preventDefault(); void assess(assessDoc?.id); } }} aria-label="Your question or idea" />
                       <MicButton variant="inline" label="Dictate a theory" onText={(t) => setTheory((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t))} />
                     </div>
                     <p className="small">Hold the mic, speak, then let go. Your words go in the box. You can edit them.</p>
-                    <p><button className="btn" onClick={() => assess(assessDocId || realDocs[0]?.id)} disabled={busy === 'assess'}><Icon name="question" />{busy === 'assess' ? 'Checking…' : 'Check this'}</button>{busy === 'assess' && <span className="small"> This can take 30 to 60 seconds.</span>}</p>
+                    <p><button className="btn" onClick={() => assess(assessDoc?.id)} disabled={busy === 'assess'}><Icon name="question" />{busy === 'assess' ? 'Checking…' : 'Check this'}</button>{busy === 'assess' && <span className="small"> This can take 30 to 60 seconds.</span>}</p>
                   </>
                 )}
                 {assessResult && (
@@ -963,7 +1032,7 @@ export default function Home() {
             </div>
             <div className="vault-section-head">
               <div>
-                <h3>Source Ingestions & Books</h3>
+                <h3>Source Ingestions & Excerpts</h3>
                 <p className="small">Extracted source files subjected to multi-agent adversarial inquiry.</p>
               </div>
               <label className="small vault-sort">Sort by: <select value={vaultSort} onChange={(e) => setVaultSort(e.target.value)} aria-label="Sort sources"><option value="recent">Most Recent</option><option value="claims">Claim Density</option><option value="verdict">Contradiction Count</option></select></label>
@@ -979,7 +1048,7 @@ export default function Home() {
                 const ext = String(d.media?.file?.ext || '').toUpperCase();
                 const badge = d.kind === 'website' ? 'WEB PAGE' : d.kind === 'image' ? 'OCR • IMAGE' : d.kind === 'video' ? 'VIDEO' : d.kind === 'audio' ? 'AUDIO' : `${ext || 'DOC'} • ${d.pages || '?'} PGS`;
                 const tag = d.kind === 'website' ? 'Website' : d.kind === 'image' ? 'Muse Spark' : d.kind === 'video' ? 'Transcript' : d.kind === 'audio' ? 'Transcript' : ext === 'PDF' ? 'PDF' : ext === 'DOCX' ? 'DOCX' : 'Manuscript';
-                const icon = d.kind === 'website' ? 'website' : d.kind === 'image' ? 'image' : d.kind === 'video' ? 'video' : d.kind === 'audio' ? 'audio' : 'book';
+                const icon = d.kind === 'website' ? 'website' : d.kind === 'image' ? 'image' : d.kind === 'video' ? 'video' : d.kind === 'audio' ? 'audio' : 'excerpt';
                 const blurb = ((d.claims?.[0]?.text || '').slice(0, 140)) || 'No claims extracted yet.';
                 return (
                   <article className="vault-card" key={d.id} onClick={() => { setDoc(d); setSelected(null); }}>
@@ -1032,7 +1101,7 @@ export default function Home() {
         <div className="doc-layout">
           {!shown && <div className="doc-main">
         {doc && doc.kind !== 'history' && (
-          <section><div className="rule" /><h2>{doc.title}</h2>
+          <section><div className="rule" /><p><button type="button" className="btn secondary" onClick={() => { setSelected(null); setDoc(null); }} aria-label="Back to source list"><Icon name="back" />Back to sources</button></p><h2>{doc.title}</h2>
             {doc.kind === 'website' && safeHttpUrl(doc.sourceUrl) && <p className="small">From a website. <a href={safeHttpUrl(doc.sourceUrl)} target="_blank" rel="noreferrer">Open the first page</a></p>}
             {doc.kind === 'website' && doc.sourceUrl && !safeHttpUrl(doc.sourceUrl) && <p className="small">From a website.</p>}
             {doc.kind === 'image' && doc.media?.caption && <p className="small">What the image shows, by Muse Spark: “{doc.media.caption}”</p>}
@@ -1046,7 +1115,7 @@ export default function Home() {
                 doc={doc}
                 telemetry={scrutiny}
                 claims={visibleClaims}
-                counts={{ shown: visibleClaims.length, total: doc.claims.length }}
+                counts={{ shown: visibleClaims.length, total: doc.claims.length - dismissedClaims.length }}
                 activeFilter={claimVerdictFilter}
                 onFilter={setClaimVerdictFilter}
                 selectedId={selected?.id}
@@ -1055,6 +1124,10 @@ export default function Home() {
                 onExport={(c) => exportClaim(doc.id, c.id)}
                 onRecrawl={recheckDoc}
                 onDebate={() => { if (selected?.id) seedChatFromClaim(`${doc.id}:${selected.id}`); setTab('claims'); }}
+                onVerify={(c) => verifyClaim(c)}
+                onDismiss={(c) => dismissClaim(c, true)}
+                onRestore={(c) => dismissClaim(c, false)}
+                dismissedClaims={dismissedClaims}
                 busy={busy}
               />
             )}
@@ -1078,9 +1151,18 @@ export default function Home() {
             ) : (
               <div className="claim" data-claim-row data-selected="false" key={c.id}>
                 <span>{c.text}<br /><span className="small">{doc.kind === 'website' ? 'Web page' : doc.kind === 'image' ? 'Caption' : (doc.kind === 'video' || doc.kind === 'audio') ? `Segment ${c.page}` : pageLabel(c)} · {c.type}</span></span>
-                <span><span className="stamp v-Unverifiable">{c.status === 'pending' ? 'Verifying…' : 'Not checked yet'}</span>{' '}<button className="btn secondary" onClick={() => verifyClaim(c)} disabled={busy === 'claim'}><Icon name="verify" />Verify this claim</button></span>
+                <span><span className="stamp v-Unverifiable">{c.status === 'pending' ? 'Verifying…' : 'Not checked yet'}</span>{' '}<button className="btn secondary" onClick={() => verifyClaim(c)} disabled={busy === 'claim'}><Icon name="verify" />Verify this claim</button>{' '}<button className="btn secondary" onClick={() => dismissClaim(c, true)} disabled={busy === 'claim'}><Icon name="trash" />Dismiss</button></span>
               </div>
             ))}
+            {doc.kind !== 'website' && dismissedClaims.length > 0 && (
+              <div className="ev" data-dismissed>
+                <h3><Icon name="trash" />Dismissed by you ({dismissedClaims.length})</h3>
+                <p className="small">Set aside as boilerplate or not worth checking. Out of the totals until restored.</p>
+                {dismissedClaims.map((c) => (
+                  <p key={c.id} className="small">“{c.text}”{' '}<button type="button" className="btn secondary" onClick={() => dismissClaim(c, false)} disabled={busy === 'claim'}>Restore</button>{' '}<button type="button" className="btn secondary" onClick={() => verifyClaim(c)} disabled={busy === 'claim'}>Check this claim</button></p>
+                ))}
+              </div>
+            )}
             <div className="doc-actions-panel" data-doc-actions>
               <div className="action-group">
                 <h3 className="action-group-title"><Icon name="refresh" />Verification</h3>
@@ -1093,12 +1175,12 @@ export default function Home() {
               <div className="action-group">
                 <h3 className="action-group-title"><Icon name="question" />Ask about this file</h3>
                 <div data-ask-link>
-                  <label className="small" htmlFor="doc-ask-input">{doc.kind === 'website' ? 'Ask this page a question' : 'Ask this book a question'} or test your idea about it. Your text will be in the box when the tool opens.</label>
+                  <label className="small" htmlFor="doc-ask-input">{doc.kind === 'website' ? 'Ask this page a question' : 'Ask this excerpt a question'} or test your idea about it. Your text will be in the box when the tool opens.</label>
                   <div className="input-with-mic">
-                    <textarea id="doc-ask-input" value={theory} onChange={(e) => setTheory(e.target.value)} rows={3} placeholder="For example: Is the 10% claim in this book true?" aria-label="Ask this document a question" />
+                    <textarea id="doc-ask-input" value={theory} onChange={(e) => setTheory(e.target.value)} rows={3} placeholder="For example: Is the 10% claim in this excerpt true?" aria-label="Ask this document a question" />
                     <MicButton variant="inline" onText={(text) => setTheory((prev) => (prev.trim() ? `${prev.trim()} ${text}` : text))} />
                   </div>
-                  <p><button type="button" className="btn" onClick={() => { setAssessDocId(doc.id); setTool('document'); setTab('check'); }}><Icon name="question" />Check this question</button>{' '}<span className="small">This opens the Ask tool with your text. To read or remove the file, use its card on the left.</span></p>
+                  <p><button type="button" className="btn" onClick={() => { setDoc(doc); setTool('document'); setTab('check'); }}><Icon name="question" />Check this question</button>{' '}<span className="small">This opens the Ask tool with your text. To read or remove the file, use its card on the left.</span></p>
                 </div>
               </div>
             </div>
@@ -1116,6 +1198,9 @@ export default function Home() {
               </span>
             </div>
             <VerdictView r={shown} docId={doc?.id} />
+            {doc && shown.id && !shown.dismissed && (
+              <p><button type="button" className="btn secondary" onClick={() => dismissClaim(shown, true)} disabled={busy === 'claim'}><Icon name="trash" />Dismiss this claim</button>{' '}<span className="small">Not worth checking? Dismiss removes it from the totals. You can restore it from the dismissed list.</span></p>
+            )}
             {doc && shown.id && (
               <div className="ev" data-challenge-record>
                 <h3><Icon name="history" />Follow-up checks</h3>
@@ -1165,14 +1250,14 @@ export default function Home() {
                   document.body.appendChild(a); a.click(); a.remove();
                   URL.revokeObjectURL(url);
                 }} disabled={chatMessages.length === 0}><Icon name="download" />Export transcript</button>
-                <button type="button" className="btn secondary" onClick={() => document.getElementById('debate-composer-input')?.focus()}><Icon name="refresh" />Re-interrogate triad</button>
+                <button type="button" className="btn secondary" onClick={() => document.getElementById('debate-composer-input')?.focus()}><Icon name="refresh" />Ask a follow-up</button>
                 <button type="button" className="btn secondary" onClick={() => void openChatRecord()} disabled={!chatContext}><Icon name="library" />Send to claim dossier</button>
               </div>
             </div>
             <div className="arena-matrix" data-deliberation-matrix>
               <div className="arena-matrix-head">
                 <div>
-                  <p className="arena-kicker">Consensus evolution track</p>
+                  <p className="arena-kicker">How the verdict changed</p>
                   <h3>Deliberation matrix</h3>
                 </div>
                 <span className="arena-tag">{chatMessages.filter((m) => m.role === 'followup').length} follow-up checks</span>
@@ -1189,7 +1274,7 @@ export default function Home() {
                   <p className="meta">Round 02 · Adversarial rebuttal</p>
                   {chatMessages.find((m) => m.role === 'followup')
                     ? <p><span className={cls(chatMessages.find((m) => m.role === 'followup').followup.verdict)}>{chatMessages.find((m) => m.role === 'followup').followup.verdict}</span></p>
-                    : <p className="small">{lastChatVerdict ? 'No rebuttal yet. Use the 5 buttons below to push back on the verdict.' : 'The Skeptic steps in after the first verdict.'}</p>}
+                    : <p className="small">{lastChatVerdict ? 'No rebuttal yet. Use the 5 buttons below to push back on the verdict.' : 'A follow-up check runs after the first verdict, when you ask for one.'}</p>}
                   {chatMessages.find((m) => m.role === 'followup') && <p className="small">{chatMessages.find((m) => m.role === 'followup').followup.explanation}</p>}
                 </article>
                 <article className="arena-round">
@@ -1215,22 +1300,22 @@ export default function Home() {
               </div>
             </div>
             <div className="arena-tri-head">
-              <h3><Icon name="users" />The tri-agent dialectic arena</h3>
-              <span className="small">Researcher, Fact-checker, and Skeptic read the same evidence.</span>
+              <h3><Icon name="users" />How this verdict was checked</h3>
+              <span className="small">Research first, then judging, then a challenge if you ask for one.</span>
             </div>
             <div className="arena-tri">
-              <article className="arena-agent" data-agent="Researcher">
-                <p className="agent-role">Researcher</p>
+              <article className="arena-agent" data-agent="Research">
+                <p className="agent-role">Research</p>
                 <p className="small">{lastChatVerdict?.research ? `${lastChatVerdict.research.fetched} sources loaded of ${lastChatVerdict.research.sourcesFound} found.` : 'No research run was recorded yet.'}</p>
                 {lastChatVerdict?.research?.queries?.length > 0 && <p className="small">We searched for: {lastChatVerdict.research.queries.join(' · ')}</p>}
               </article>
-              <article className="arena-agent" data-agent="Fact-checker">
-                <p className="agent-role">Fact-checker</p>
+              <article className="arena-agent" data-agent="Judges">
+                <p className="agent-role">Judges</p>
                 <p className="small">{lastChatVerdict ? (lastChatVerdict.judges ? `Muse Spark said ${lastChatVerdict.judges.spark}; Muse Wonder said ${lastChatVerdict.judges.wonder}.` : `Decided by ${lastChatVerdict.judgedBy}.`) : 'No verdict to defend yet.'}</p>
                 {lastChatVerdict && <p className="small">{lastChatVerdict.supporting?.length || 0} quotes for · {lastChatVerdict.contradicting?.length || 0} quotes against</p>}
               </article>
-              <article className="arena-agent" data-agent="Skeptic">
-                <p className="agent-role">Skeptic</p>
+              <article className="arena-agent" data-agent="Challenge">
+                <p className="agent-role">Challenge</p>
                 <p className="small">{lastChatVerdict?.challenge ? `Challenged first verdict ${lastChatVerdict.preChallengeVerdict}. Still not clear: ${lastChatVerdict.challenge.unresolved}` : lastChatVerdict ? 'No second check ran on this verdict. Ask what would prove it wrong below.' : 'No verdict to attack yet.'}</p>
                 {lastChatVerdict?.limitations?.length > 0 && <p className="small">Limits: {lastChatVerdict.limitations.join(' ')}</p>}
               </article>
@@ -1303,7 +1388,7 @@ export default function Home() {
             <div className="vault-table" data-vault-table data-history-table>
               <div className="vault-table-bar">
                 <div className="vault-tabs" role="group" aria-label="Filter claims by source type">
-                  {[['all', 'All Files'], ['book', 'Books & Manuscripts'], ['paper', 'Research Papers'], ['scan', 'Media & Scans']].map(([v, label]) => (
+                  {[['all', 'All Files'], ['excerpt', 'Excerpts & Manuscripts'], ['paper', 'Research Papers'], ['scan', 'Media & Scans']].map(([v, label]) => (
                     <button key={v} type="button" className={vaultCat === v ? 'tab on' : 'tab'} aria-pressed={vaultCat === v} onClick={() => { setVaultCat(v); setVaultPage(1); }}>{label} ({v === 'all' ? vaultDocCounts.all : vaultDocCounts[v]})</button>
                   ))}
                 </div>
@@ -1316,7 +1401,7 @@ export default function Home() {
                   <select value={histWorkflow} onChange={(e) => { setHistWorkflow(e.target.value); setVaultPage(1); void loadHistory(vaultQuery, histVerdict, e.target.value); }} aria-label="Filter by tool">
                     <option value="">Any tool</option>
                     <option value="claim">Check a claim</option>
-                    <option value="book">Book</option>
+                    <option value="excerpt">Excerpt</option>
                     <option value="website">Website</option>
                   </select>
                   <button className="btn secondary" onClick={() => void loadHistory(vaultQuery, histVerdict, histWorkflow)}>Reload</button>
@@ -1331,7 +1416,7 @@ export default function Home() {
                     const strength = c.uncertainty?.evidenceStrength?.score;
                     const at = single ? c._entry?.at : (c.history?.length ? c.history[c.history.length - 1].at : null);
                     const loc = single ? 'Single check' : d.kind === 'website' ? 'Web page' : d.kind === 'image' ? 'Caption' : (d.kind === 'video' || d.kind === 'audio') ? `Segment ${c.page ?? '?'}` : `Page${c.pages?.length > 1 ? `s ${c.pages.join(', ')}` : ` ${c.page ?? '?'}`}`;
-                    const docIcon = d.kind === 'website' ? 'website' : d.kind === 'image' ? 'image' : d.kind === 'video' ? 'video' : d.kind === 'audio' ? 'audio' : 'book';
+                    const docIcon = d.kind === 'website' ? 'website' : d.kind === 'image' ? 'image' : d.kind === 'video' ? 'video' : d.kind === 'audio' ? 'audio' : 'excerpt';
                     const openRow = single ? () => reopenHistory(c._entry) : () => { setDoc(d); setSelected(c); setTab('library'); };
                     return (
                       <tr key={single ? `single:${c.id}` : `${d.id}:${c.id}`} className="claim-row">
@@ -1344,6 +1429,7 @@ export default function Home() {
                         <td><span className="row-actions">
                           <button type="button" className="icon-btn" title="Telemetry & agent debate" aria-label={`Open claim: ${c.text}`} onClick={openRow}><Icon name="view" /></button>
                           {c.verdict ? <button type="button" className="icon-btn" title="Export dossier" aria-label={`Export dossier for: ${c.text}`} onClick={() => exportClaim(d.id, c.id)}><Icon name="download" /></button> : null}
+                          <button type="button" className="icon-btn danger" title="Delete check" aria-label={`Delete check: ${c.text}`} onClick={() => askHistoryDelete({ doc: d, claim: c, single })}><Icon name="trash" /></button>
                         </span></td>
                       </tr>
                     );
@@ -1389,7 +1475,7 @@ export default function Home() {
               <h2>{viewerDoc.title}</h2>
               <button type="button" className="btn secondary" onClick={() => setViewerDoc(null)} aria-label="Close document viewer"><Icon name="close" />Close</button>
             </div>
-            <p className="small">{viewerDoc.kind === 'website' ? (safeHttpUrl(viewerDoc.sourceUrl) ? <>Website · <a href={safeHttpUrl(viewerDoc.sourceUrl)} target="_blank" rel="noreferrer">Open the first page</a></> : 'Website') : viewerDoc.kind === 'image' ? 'Image · text by Muse Spark' : viewerDoc.kind === 'video' ? 'Video · text by Muse Voice Transcribe and Muse Spark' : viewerDoc.kind === 'audio' ? 'Audio · text by Muse Voice Transcribe' : viewerDoc.media?.file?.mime === 'application/pdf' ? 'PDF document' : viewerDoc.media?.file?.ext === 'docx' ? 'Word document (DOCX)' : 'Book or pasted text'} This is the file as you added it. Claims and answers are in the Library.</p>
+            <p className="small">{viewerDoc.kind === 'website' ? (safeHttpUrl(viewerDoc.sourceUrl) ? <>Website · <a href={safeHttpUrl(viewerDoc.sourceUrl)} target="_blank" rel="noreferrer">Open the first page</a></> : 'Website') : viewerDoc.kind === 'image' ? 'Image · text by Muse Spark' : viewerDoc.kind === 'video' ? 'Video · text by Muse Voice Transcribe and Muse Spark' : viewerDoc.kind === 'audio' ? 'Audio · text by Muse Voice Transcribe' : viewerDoc.media?.file?.mime === 'application/pdf' ? 'PDF document' : viewerDoc.media?.file?.ext === 'docx' ? 'Word document (DOCX)' : 'Excerpt or pasted text'} This is the file as you added it. Claims and answers are in the Library.</p>
             {viewerDoc.kind === 'image' && viewerDoc.media?.file && <img className="viewer-media" src={`/api/documents/${viewerDoc.id}/media`} alt={viewerDoc.title} loading="lazy" decoding="async" />}
             {viewerDoc.kind === 'image' && !viewerDoc.media?.file && <p className="small">We did not keep this image file. Below is the text Muse Spark wrote about it. Add the image again to see it here.</p>}
             {viewerDoc.kind === 'video' && viewerDoc.media?.file && <video className="viewer-media" src={`/api/documents/${viewerDoc.id}/media`} controls preload="metadata" aria-label={`Video: ${viewerDoc.title}`} />}
@@ -1419,20 +1505,36 @@ export default function Home() {
         </Modal>
       )}
       {pendingDelete && (
-        <Modal small label={`Remove file: ${pendingDelete.title}`} marker="data-delete-confirm" onClose={() => { setPendingDelete(null); setConfirmTitle(''); }}>
+        <Modal small label={`Remove file: ${pendingDelete.title}`} marker="data-delete-confirm" onClose={cancelDelete}>
             <div className="modal-head">
               <h2>Remove file</h2>
-              <button type="button" className="btn secondary" onClick={() => { setPendingDelete(null); setConfirmTitle(''); }} aria-label="Cancel removal"><Icon name="close" />Cancel</button>
+              <button type="button" className="btn secondary" onClick={cancelDelete} aria-label="Cancel removal"><Icon name="close" />Cancel</button>
             </div>
             <p><strong>{pendingDelete.title}</strong> and all its claims and answers will be permanently removed. You cannot undo this.</p>
             <p className="small">Type the file title to confirm: <strong>{pendingDelete.title}</strong></p>
             <p><input type="text" value={confirmTitle} onChange={(e) => setConfirmTitle(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void removeDocument(); }} aria-label="Type the file title to confirm removal" placeholder="Type the file title" /></p>
             {deleteErr && <p className="error" role="alert">{deleteErr}</p>}
             <p>
-              <button type="button" className="btn secondary" onClick={() => { setPendingDelete(null); setConfirmTitle(''); }}>Keep this file</button>{' '}
+              <button type="button" className="btn secondary" onClick={cancelDelete}>Keep this file</button>{' '}
               <button type="button" className="btn danger" disabled={confirmTitle.trim() !== pendingDelete.title.trim() || busy === 'delete'} onClick={removeDocument}><Icon name="trash" />{busy === 'delete' ? 'Removing…' : 'Remove permanently'}</button>
             </p>
             {confirmTitle.trim() !== pendingDelete.title.trim() && <p className="small">Type the title exactly to turn on the Remove button.</p>}
+        </Modal>
+      )}
+      {pendingHistoryDelete && (
+        <Modal small label="Delete check" marker="data-history-delete-confirm" onClose={() => { setPendingHistoryDelete(null); setHistoryDeleteErr(''); }}>
+            <div className="modal-head">
+              <h2>Delete check</h2>
+              <button type="button" className="btn secondary" onClick={() => { setPendingHistoryDelete(null); setHistoryDeleteErr(''); }} aria-label="Cancel deletion"><Icon name="close" />Cancel</button>
+            </div>
+            <p><strong>{pendingHistoryDelete.text}</strong> will be permanently removed from Past checks. You cannot undo this.</p>
+            {pendingHistoryDelete.docTitle && <p className="small">From: {pendingHistoryDelete.docTitle}</p>}
+            {pendingHistoryDelete.count > 1 && <p className="small">This removes {pendingHistoryDelete.count} similar checks grouped with it.</p>}
+            {historyDeleteErr && <p className="error" role="alert">{historyDeleteErr}</p>}
+            <p>
+              <button type="button" className="btn secondary" onClick={() => { setPendingHistoryDelete(null); setHistoryDeleteErr(''); }}>Keep this check</button>{' '}
+              <button type="button" className="btn danger" disabled={busy === 'history-delete'} onClick={removeHistoryEntry}><Icon name="trash" />{busy === 'history-delete' ? 'Deleting…' : 'Delete permanently'}</button>
+            </p>
         </Modal>
       )}
     </main>

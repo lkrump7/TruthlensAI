@@ -12,7 +12,8 @@
     "typecheck": "tsc -p tsconfig.lib.json",
     "lint": "eslint lib tests eval app e2e playwright.config.mjs eslint.config.mjs",
     "coverage": "node --test --experimental-test-coverage tests/*.test.mjs",
-    "eval": "node eval/run.mjs"
+    "eval": "node eval/run.mjs",
+    "setup": "./setup.sh"
   },
   "dependencies": {
     "@langchain/langgraph": "^1.6.0",

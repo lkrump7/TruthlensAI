@@ -100,7 +100,7 @@ Moved font `<link>` tags from `<body>` to `<head>`. Added `openGraph`,
 - `app/components/theme-toggle.js`: pre-ready label is neutral "Theme" with
   `aria-pressed={false}`. No wrong dark/light flash before mount.
 - `app/components/verdict.js`: history date pins `en-US` short format to
-  match `lib/ui-state.mjs` and `book-dossier.js`.
+  match `lib/ui-state.mjs` and `excerpt-dossier.js`.
 
 ### Route resilience — `app/error.js`, `app/loading.js`, `app/not-found.js`
 

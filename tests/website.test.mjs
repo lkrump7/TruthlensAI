@@ -94,10 +94,10 @@ test('a reader can ask about claims on a website and get page passages with the 
   assert.ok(out, 'assess must work for website documents');
   assert.equal(out.claim.source, 'reader-submitted');
   assert.ok(out.claim.verdict);
-  assert.ok(out.claim.bookPassages.length >= 1, JSON.stringify(out.claim.bookPassages));
-  assert.match(out.claim.bookPassages.map((p) => p.passage).join(' '), /reservoir/i);
+  assert.ok(out.claim.excerptPassages.length >= 1, JSON.stringify(out.claim.excerptPassages));
+  assert.match(out.claim.excerptPassages.map((p) => p.passage).join(' '), /reservoir/i);
   assert.equal(out.claim.sourceUrl, 'https://news.example/reservoir');
-  assert.equal(out.claim.bookPassages[0].url, 'https://news.example/reservoir');
+  assert.equal(out.claim.excerptPassages[0].url, 'https://news.example/reservoir');
 });
 
 test('asking about a website claim still answers when the live stance call fails', async () => {
@@ -113,7 +113,7 @@ test('asking about a website claim still answers when the live stance call fails
     assert.ok(out, 'assess must not throw when the live stance call fails');
     assert.equal(out.claim.authorStance.stance, 'unknown');
     assert.match(out.claim.authorStance.reason, /stance/i);
-    assert.equal(out.claim.bookPassages[0].url, 'https://news.example/reservoir');
+    assert.equal(out.claim.excerptPassages[0].url, 'https://news.example/reservoir');
     assert.ok(out.claim.verdict, 'a verdict (or an honest Unverifiable) must still be recorded');
   } finally {
     if (saved.u === undefined) delete process.env.META_MODEL_API_URL; else process.env.META_MODEL_API_URL = saved.u;
@@ -121,9 +121,9 @@ test('asking about a website claim still answers when the live stance call fails
   }
 });
 
-test('books keep kind book by default', async () => {
+test('excerpts keep kind excerpt by default', async () => {
   const { createDocument } = await import('../lib/store.mjs');
-  const doc = await createDocument({ title: 'Plain Book', owner: 'website-test', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens everywhere today.' }] });
-  assert.equal(doc.kind, 'book');
+  const doc = await createDocument({ title: 'Plain Excerpt', owner: 'website-test', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens everywhere today.' }] });
+  assert.equal(doc.kind, 'excerpt');
   assert.equal(doc.sourceUrl, undefined);
 });

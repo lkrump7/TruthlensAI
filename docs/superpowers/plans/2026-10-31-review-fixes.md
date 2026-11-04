@@ -25,7 +25,7 @@
 
 - A URL host written as `[::ffff:127.0.0.1]` or `[::]`. Expect a block, same as `127.0.0.1`. A normal domain that starts with `fc` must still load.
 - A posted export record that names a document and claim the server never stored. Expect a refusal, not a report.
-- Two readers acting on one book at the same time. Expect both writes to survive, and the auto-verify count to stay at 20 even when claim text repeats.
+- Two readers acting on one excerpt at the same time. Expect both writes to survive, and the auto-verify count to stay at 20 even when claim text repeats.
 - An image the model reads as blank, and a video file ffmpeg cannot parse. Expect 422 for the blank read and a clear failure for the broken file. A silent video must still become a document.
 - A compound claim with one checked part and one opinion part. Expect `Partially supported` or `Unverifiable`, never a clean decisive verdict.
 

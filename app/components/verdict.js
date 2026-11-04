@@ -174,6 +174,23 @@ const toneFor = (v) => {
 
 const pctOf = (score) => Math.round(Math.max(0, Math.min(1, Number(score) || 0)) * 100);
 
+function majoritySideOf(sup, con, decided) {
+  if (decided === 0) return null;
+  if (sup > con) return 'For';
+  if (con > sup) return 'Against';
+  return 'Split';
+}
+
+function consensusOf(r) {
+  const judgesAgree = r.judges ? !!r.judges.agreed : null;
+  const repeatRuns = r.stability && r.stability.runs >= 2 ? r.stability.runs : 0;
+  const repeatAgree = repeatRuns ? !!r.stability.agreed : null;
+  if (judgesAgree === false || repeatAgree === false) return 'Agents Split — See Deliberation';
+  if (repeatRuns) return `${repeatRuns} of ${repeatRuns} repeat checks agree`;
+  if (judgesAgree) return 'Both checkers agree';
+  return 'Single check';
+}
+
 function DossierGauge({ value, top, bottom, tone }) {
   const pct = Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
   const circle = 2 * Math.PI * 42;
@@ -226,13 +243,14 @@ export function VerdictView({ r, docId, hideDownload, onRerun, onExport, onDebat
   const total = sup + con + amb;
   const decided = sup + con;
   const top = Math.max(sup, con);
+  const majoritySide = majoritySideOf(sup, con, decided);
   const alignPct = decided ? Math.round((top / decided) * 100) : 0;
   const tone = toneFor(r.verdict);
   const faithPct = r.uncertainty ? pctOf(r.uncertainty.faithfulness.score) : 0;
   const strengthPct = r.uncertainty ? pctOf(r.uncertainty.evidenceStrength.score) : 0;
   const strengthLabel = r.uncertainty ? r.uncertainty.evidenceStrength.label : null;
   const qualityBase = strengthLabel === 'high' ? 'High-Quality Base' : strengthLabel === 'medium' ? 'Medium-Quality Base' : strengthLabel === 'low' ? 'Low-Quality Base' : 'No Quality Base';
-  const agreed = r.judges ? !!r.judges.agreed : (r.stability ? !!r.stability.agreed : true);
+  const consensus = consensusOf(r);
   const checkedAt = r.history?.length ? r.history[r.history.length - 1].at : null;
   const category = r.type && r.type !== 'Unclassified' ? r.type : 'General claim';
   const exportRef = (docId || r.historyDocId) && (r.id || r.historyClaimId);
@@ -248,7 +266,7 @@ export function VerdictView({ r, docId, hideDownload, onRerun, onExport, onDebat
   return (
     <section className="verdict-panel dossier" data-verdict-panel data-dossier data-tone={tone}>
       <div className="audit-ribbon" data-audit-ribbon>
-        <p className="dossier-kicker"><span><span className="live-dot" aria-hidden="true" />LIVE AUDIT DOSSIER</span><span>Category: {category} · Telemetry ID: {r.id || r.historyClaimId || dossierIdFor(r.text)}</span></p>
+        <p className="dossier-kicker"><span><span className="live-dot" aria-hidden="true" />{r.mode === 'demo' ? 'DEMO AUDIT DOSSIER' : 'AUDIT DOSSIER'}</span><span>Category: {category} · Telemetry ID: {r.id || r.historyClaimId || dossierIdFor(r.text)}</span></p>
         <div className="audit-actions">
           {onRerun && <button type="button" className="btn secondary" onClick={onRerun}><Icon name="refresh" />Re-run Verification</button>}
           {(onExport || exportRef) && <button type="button" className="btn secondary" onClick={onExport || doExport}><Icon name="download" />Export Dossier</button>}
@@ -261,15 +279,15 @@ export function VerdictView({ r, docId, hideDownload, onRerun, onExport, onDebat
           <p className="small">Target Source Profile: {r.type || 'Unclassified'}</p>
         </div>
         <div className="dossier-screen">
-          <span className="meta">Sanitization Engine</span>
-          <span className="screen-ok">Screened Before Scoring</span>
+          <span className="meta">Source screening</span>
+          <span className="screen-ok">Fetched text is screened before judging</span>
         </div>
       </div>
       <div className="adjudication" data-adjudication>
         <div className="adjudication-left">
-          <p className="meta">Synthetic Adjudication</p>
+          <p className="meta">Verdict</p>
           <p><span className={cls(r.verdict)}>{r.verdict}</span></p>
-          <p className="small consensus">Consensus: <strong>{agreed ? '3 of 3 Agents Agree' : 'Agents Split — See Deliberation'}</strong></p>
+          <p className="small consensus">Consensus: <strong>{consensus}</strong></p>
           <p className="small mono">Ledger: {ledgerShort(r.text)}</p>
         </div>
         <div className="synthesis">
@@ -279,10 +297,10 @@ export function VerdictView({ r, docId, hideDownload, onRerun, onExport, onDebat
       </div>
       <InvestigationSteps stages={r.trajectory} r={r} />
       {r.stability && (r.stability.runs >= 2
-        ? <p className="small">Checked {r.stability.runs} times on the same evidence. {r.stability.agreed ? 'Each check gave the same verdict.' : 'Runs disagreed, so we show the safer verdict.'} The verdicts were {r.stability.verdicts.join(', ')}.</p>
+        ? <p className="small">Checked {r.stability.runs} times on the same evidence. {r.stability.agreed ? 'Each check gave the same verdict.' : 'Runs disagreed, so we show the safer verdict.'} The verdicts were {r.stability.verdicts.join(', ')}.{r.stability.majority && r.stability.majority !== r.verdict ? ` A safety rule moved the shown verdict to ${r.verdict}. The limits below say why.` : ''}</p>
         : <p className="small">Checked once. No repeat run, so no agreement was measured.</p>)}
       {!hideDownload && (docId || r.historyDocId) && (r.id || r.historyClaimId) && <p><button type="button" className="btn secondary" onClick={async () => { setDownloadNote(''); const ok = await downloadReport(docId || r.historyDocId, r.id || r.historyClaimId).catch(() => false); if (!ok) setDownloadNote('We could not download the report. Try again.'); }}><Icon name="download" />Download report</button>{downloadNote && <span className="error" role="alert"> {downloadNote}</span>}</p>}
-      <p className="small">Type: {r.type} · Checked by {r.judgedBy}{r.research ? ` · Sources: ${r.research.sourcesFound} sources found, ${r.research.fetched} loaded and used` : ''}</p>
+      <p className="small">Type: {r.type} · Checked by {r.judgedBy}{r.research ? ` · Sources: ${r.research.sourcesFound} found, ${r.research.fetched} loaded, ${citedTotal} cited` : ''}</p>
       {r.research?.queries?.length > 0 && <p className="small">We searched for: {r.research.queries.join(' · ')}</p>}
       {r.judges && !r.judges.agreed && <div className="notice"><strong>The two checkers disagreed:</strong> Muse Spark said {r.judges.spark}; Muse Wonder said {r.judges.wonder}. We show the Wonder verdict.</div>}
       {r.challenge && <div className="notice"><strong>We changed our first verdict:</strong> at first we said {r.preChallengeVerdict}. Weakest evidence: {r.challenge.weakestEvidenceId || 'not named'}. What would prove it wrong: {r.challenge.falsifier} Other idea: {r.challenge.alternative} Still not clear: {r.challenge.unresolved}</div>}
@@ -294,17 +312,17 @@ export function VerdictView({ r, docId, hideDownload, onRerun, onExport, onDebat
               <h3 className="metric-title">Citation Alignment Score</h3>
               <p className="small">Share of classified quotes on the majority side</p>
             </div>
-            <span className="concur-pill">{top}/{decided} Concur</span>
+            <span className="concur-pill">{decided === 0 ? 'No classified quotes' : `${top}/${decided} ${majoritySide}`}</span>
           </div>
           <div className="metric-body">
             <DossierGauge value={alignPct} top={`${alignPct}%`} bottom="Concordance" tone={tone} />
             <div className="metric-bars">
               <div className="metric-bar-row">
-                <div className="metric-bar-top"><span>Contradicting Claims</span><span>{con} ({total ? Math.round((con / total) * 100) : 0}%)</span></div>
+                <div className="metric-bar-top"><span>Quotes against</span><span>{con} ({total ? Math.round((con / total) * 100) : 0}%)</span></div>
                 <div className="bar-track"><div className="bar-fill red" style={{ width: `${total ? (con / total) * 100 : 0}%` }} /></div>
               </div>
               <div className="metric-bar-row">
-                <div className="metric-bar-top"><span>Supporting Claims</span><span>{sup} ({total ? Math.round((sup / total) * 100) : 0}%)</span></div>
+                <div className="metric-bar-top"><span>Quotes for</span><span>{sup} ({total ? Math.round((sup / total) * 100) : 0}%)</span></div>
                 <div className="bar-track"><div className="bar-fill green" style={{ width: `${total ? (sup / total) * 100 : 0}%` }} /></div>
               </div>
               <div className="metric-bar-row">
@@ -372,21 +390,22 @@ export function VerdictView({ r, docId, hideDownload, onRerun, onExport, onDebat
           </div>
         </div>
       </div>}
+      {(r.allEvidence || []).length > 0 && <div><h3>All fetched passages ({r.allEvidence.length})</h3><p className="small">Every passage that passed fetching and screening, including ones the judge did not cite. The verdict above rests on the cited quotes.</p><Evidence items={r.allEvidence} empty="" /></div>}
       {r.unclassified?.length > 0 && <div><h3>Evidence we used, but its side is unclear</h3><Evidence items={r.unclassified} empty="" /></div>}
       {r.subclaims?.length > 0 && <div><h3>Parts of the claim</h3>{r.subclaims.map((s, i) => <p className="small" key={i}><span className={cls(s.verdict)}>{s.verdict}</span> {s.text}</p>)}</div>}
       {r.propositions?.length > 0 && <div><h3>Your idea, point by point</h3>{r.propositions.map((p, i) => <div className="notice" key={i} style={{ marginBottom: 8 }}><span className={cls(p.verdict)}>{p.verdict || 'Not judged'}</span> {p.text}<br /><span className="small">The author's position: <strong>{p.authorStance?.stance}</strong> — {p.authorStance?.reason} (This is our reading. It is not proof.)</span>{p.passages?.map((pg, j) => <p className="small" key={j}>Page {pg.page}: “{pg.passage}”</p>)}</div>)}</div>}
       {r.forensics && <div><div className="rule" /><h3>Checking the evidence</h3>
-        {r.forensics.discrepancies.length === 0 ? <p className="small">We found no problems between the claim and its evidence.</p> : r.forensics.discrepancies.map((d, i) => <div className="notice" key={i} style={{ marginBottom: 8 }}><strong>{d.label}.</strong> {d.detail}</div>)}</div>}
+        {r.forensics.discrepancies.length === 0 ? <p className="small">Wording checks found no number, group, or negation mismatch. Source count and quality limits are listed below.</p> : r.forensics.discrepancies.map((d, i) => <div className="notice" key={i} style={{ marginBottom: 8 }}><strong>{d.label}.</strong> {d.detail}</div>)}</div>}
       {r.limitations?.length > 0 && <div className="notice"><strong>Limits of this check:</strong> {r.limitations.join(' ')}</div>}
-      {r.bookPassages?.length > 0 && <div><div className="rule" /><h3>{r.sourceUrl ? 'On this page' : 'In this book'}</h3>{r.authorStance && <p className="small">The author's position: <strong>{r.authorStance.stance}</strong> — {r.authorStance.reason} (This is our reading of the text. It is not proof.)</p>}{r.bookPassages.map((p, i) => {
+      {(r.excerptPassages?.length > 0 || r.bookPassages?.length > 0) && <div><div className="rule" /><h3>{r.sourceUrl ? 'On this page' : 'In this excerpt'}</h3>{r.authorStance && <p className="small">The author's position: <strong>{r.authorStance.stance}</strong> — {r.authorStance.reason} (This is our reading of the text. It is not proof.)</p>}{(r.excerptPassages?.length ? r.excerptPassages : r.bookPassages).map((p, i) => {
         const passageHref = safeHttpUrl(p.url);
         return <article className="ev" key={i}><div className="meta">{passageHref ? <>Web page · <a href={passageHref} target="_blank" rel="noreferrer">Open source</a></> : `Page ${p.page}`}</div><p>“{p.passage}”</p></article>;
       })}</div>}
       {r.followups?.length > 0 && <div><div className="rule" /><h3>Follow-up checks</h3>{r.followups.map((f, i) => <div className="notice" key={i} style={{ marginBottom: 8 }}><strong>{{ 'stronger-contrary': 'Stronger evidence against it', 'prove-wrong': 'What would prove this wrong', 'stronger-support': 'Stronger evidence for it', 'prove-right': 'What would confirm this', 'compare-author': 'What the author says', custom: 'Your own question' }[f.kind] || f.kind}:</strong> {f.instruction}<br />{f.comparison ? <>Compared with the author. Current verdict: <strong>{f.verdict}</strong></> : <>New verdict: <strong>{f.verdict}</strong></>} — {f.explanation}{f.falsifier && <><br />What would prove it wrong: {f.falsifier} Found: <strong>{f.falsifierFound ? 'yes' : 'no'}</strong></>}{f.confirmer && <><br />What would prove it right: {f.confirmer} Found: <strong>{f.confirmerFound ? 'yes' : 'no'}</strong></>}{f.newSupporting?.length > 0 && <><br />New evidence for it: {f.newSupporting.length} from new sources.</>}{f.newOpposing?.length > 0 && <><br />New evidence against it: {f.newOpposing.length} from new sources.</>}{f.comparison?.passages?.map((p, j) => <p className="small" key={j}>Page {p.page}: “{p.passage}”</p>)}</div>)}</div>}
       <div className="agent-deliberation" data-agent-deliberation>
         <p className="meta">Dialectical Triad</p>
-        <h2 className="matrix-title">Autonomous Agent Deliberation</h2>
-        <p className="small">Three independent adversarial model personas interrogate source validity, citation chains, and publication bias before emitting final consensus tokens.</p>
+        <h2 className="matrix-title">How the roles divide the work</h2>
+        <p className="small">Three roles split the check: research gathers sources, fact-checking reads them, and a skeptic probes the answer. The verdict shown on each card is the shared final answer.</p>
         <div className="agent-cards">
           <div className="agent-card" data-agent="Researcher">
             <div className="agent-top"><span className="agent-ic" aria-hidden="true"><Icon name="search" /></span><span><span className="agent-name">The Researcher</span><br /><span className="agent-sub">Citation Harvester</span></span></div>
@@ -396,7 +415,7 @@ export function VerdictView({ r, docId, hideDownload, onRerun, onExport, onDebat
               <div><span>Archive Spread:</span><span>{spread || 'Not recorded'}</span></div>
             </div>
             <p className="small">{r.research ? `${r.research.fetched} sources loaded of ${r.research.sourcesFound} found.` : 'No research run was recorded.'}</p>
-            <div className="agent-verdict"><span className="meta">AGENT VERDICT</span><span className={cls(r.verdict)}>{r.verdict}</span></div>
+            <div className="agent-verdict"><span className="meta">FINAL VERDICT</span><span className={cls(r.verdict)}>{r.verdict}</span></div>
           </div>
           <div className="agent-card" data-agent="Fact-checker">
             <div className="agent-top"><span className="agent-ic" aria-hidden="true"><Icon name="verify" /></span><span><span className="agent-name">The Fact-Checker</span><br /><span className="agent-sub">Empirical Scrutiny</span></span></div>
@@ -406,7 +425,7 @@ export function VerdictView({ r, docId, hideDownload, onRerun, onExport, onDebat
               <div><span>Effect Check:</span><span>{effectCheck ? effectCheck.status : 'Not compared'}</span></div>
             </div>
             <p className="small">{r.judges ? `Muse Spark said ${r.judges.spark}; Muse Wonder said ${r.judges.wonder}.` : `Decided by ${r.judgedBy}.`}</p>
-            <div className="agent-verdict"><span className="meta">AGENT VERDICT</span><span className={cls(r.verdict)}>{r.verdict}</span></div>
+            <div className="agent-verdict"><span className="meta">FINAL VERDICT</span><span className={cls(r.verdict)}>{r.verdict}</span></div>
           </div>
           <div className="agent-card" data-agent="Skeptic">
             <div className="agent-top"><span className="agent-ic" aria-hidden="true"><Icon name="question" /></span><span><span className="agent-name">The Skeptic</span><br /><span className="agent-sub">Adversarial Probe</span></span></div>
@@ -416,7 +435,7 @@ export function VerdictView({ r, docId, hideDownload, onRerun, onExport, onDebat
               <div><span>Agreement:</span><span>{r.stability ? (r.stability.agreed ? 'Full' : 'Split') : 'Single run'}</span></div>
             </div>
             <p className="small">{r.challenge ? `Challenged first verdict ${r.preChallengeVerdict}. Still not clear: ${r.challenge.unresolved}` : 'No second check ran on this verdict.'}</p>
-            <div className="agent-verdict"><span className="meta">AGENT VERDICT</span><span className={cls(r.verdict)}>{r.verdict}</span></div>
+            <div className="agent-verdict"><span className="meta">FINAL VERDICT</span><span className={cls(r.verdict)}>{r.verdict}</span></div>
           </div>
         </div>
       </div>

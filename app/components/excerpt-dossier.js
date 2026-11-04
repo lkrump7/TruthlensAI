@@ -4,13 +4,13 @@ import { Icon } from './icons.js';
 import { dossierBuckets, chapterIndexForPage } from '../../lib/ui-state.mjs';
 
 const BUCKETS = [
-  { key: 'supported', label: 'Supported', note: 'Peer-reviewed empirical literature.' },
-  { key: 'contradicted', label: 'Contradicted', note: 'Empirical refutation identified.' },
+  { key: 'supported', label: 'Supported', note: 'Evidence backs the claim.' },
+  { key: 'contradicted', label: 'Contradicted', note: 'Evidence goes against the claim.' },
   { key: 'partially', label: 'Partially Supported', note: 'Caveats or extrapolation present.' },
-  { key: 'unverifiable', label: 'Unverifiable', note: 'Insufficient literature / non-falsifiable.' },
+  { key: 'unverifiable', label: 'Unverifiable', note: 'Not enough evidence, or not a factual claim.' },
 ];
 
-// dossier-pure-helpers:start (dependency-free; unit-tested via source extraction in tests/book-dossier.test.mjs)
+// dossier-pure-helpers:start (dependency-free; unit-tested via source extraction in tests/excerpt-dossier.test.mjs)
 export function dossierWordDisplay(doc, claims) {
   const texts = [];
   if (Array.isArray(doc?.sourcePages)) {
@@ -49,6 +49,34 @@ export function serializeClaimCitations(doc, claims) {
     })),
   }, null, 2);
 }
+export function dossierEngineLabel(claims) {
+  const seen = [];
+  for (const c of Array.isArray(claims) ? claims : []) {
+    const by = String(c?.judgedBy || '').trim();
+    if (c?.verdict && by && !seen.includes(by)) seen.push(by);
+  }
+  return seen.length ? seen.join(', ') : 'Muse Spark 1.3, Muse Wonder 1.0 if needed';
+}
+export function dossierCheckingLabel(claims) {
+  const list = (Array.isArray(claims) ? claims : []).filter((c) => c?.verdict);
+  if (!list.length) return 'Not checked yet';
+  if (list.some((c) => c?.judges && c.judges.agreed === false)) return 'Spark and Wonder disagreed';
+  if (list.some((c) => c?.judges && typeof c.judges.agreed === 'boolean')) return 'Spark and Wonder agreed';
+  if (list.some((c) => String(c?.judgedBy || '').includes('Wonder'))) return 'Checked by Spark and Wonder';
+  return 'Checked by Muse Spark';
+}
+export function dossierKindLabel(doc) {
+  const byKind = { website: 'Website', image: 'Image', video: 'Video', audio: 'Audio', excerpt: 'Excerpt', book: 'Excerpt' };
+  if (byKind[doc?.kind]) return byKind[doc.kind];
+  if (doc?.media?.file?.mime === 'application/pdf') return 'PDF';
+  if (doc?.media?.file?.ext === 'docx') return 'DOCX';
+  return 'Document';
+}
+export function dossierPctFor(buckets, key) {
+  const field = { supported: 'supportedPct', contradicted: 'contradictedPct', partially: 'partialPct', unverifiable: 'unverifiablePct' }[key];
+  const value = field ? buckets?.[field] : undefined;
+  return Number.isFinite(Number(value)) ? Number(value) : 0;
+}
 export function downloadJsonFile(filename, text) {
   const blob = new globalThis.Blob([text], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -73,7 +101,7 @@ function claimPage(c) {
 function confidenceLabel(c) {
   const score = c?.uncertainty?.evidenceStrength?.score ?? c?.uncertainty?.faithfulness?.score;
   const pct = pctOf(score);
-  if (pct) return c?.verdict === 'Contradicted' ? `${pct} Refuted` : `${pct} Confidence`;
+  if (pct) return `${pct} evidence strength`;
   if (c?.verdict === 'Partially supported') return 'Nuanced Rate';
   if (c?.verdict === 'Unverifiable' || !c?.verdict) return 'Under-Sampled';
   return null;
@@ -86,7 +114,7 @@ function refLabel(c) {
   return 'Awaiting adjudication';
 }
 
-export function BookDossier({
+export function ExcerptDossier({
   doc, docs = [], bucket = 'all', chapter = 'all', chapters = 8,
   onBucket, onChapter, onSelectDoc, onVerifyClaim, busy,
   onExportClaim, onDebate,
@@ -127,12 +155,12 @@ export function BookDossier({
   const shortId = dossierDocId(doc);
 
   return (
-    <div data-book-dossier>
+    <div data-excerpt-dossier>
       <section className="bd-corpus">
         <div className="bd-corpus-top">
-          <div className="bd-book">
-            <div className="bd-book-cover" aria-hidden="true"><span>PDF</span><strong>Ingested</strong></div>
-            <div className="bd-book-meta">
+          <div className="bd-excerpt">
+            <div className="bd-excerpt-cover" aria-hidden="true"><span>{dossierKindLabel(doc)}</span><strong>Ingested</strong></div>
+            <div className="bd-excerpt-meta">
               <p className="bd-badges"><span className="bd-active">Corpus Active</span><span className="bd-sha">Doc ID: {shortId}</span></p>
               <p className="bd-title-row">
                 <strong>{doc?.title || 'No manuscript yet'}</strong>
@@ -142,24 +170,24 @@ export function BookDossier({
                   </select>
                 )}
               </p>
-              <p className="small">Nonfiction Analysis · {totalPages} Pages · Academic Corpus · {wordInfo.estimated ? `Ingestion: ~${wordInfo.text} words (estimate)` : `Ingestion: ${wordInfo.text} words extracted without editorial modification`}</p>
+              <p className="small">{dossierKindLabel(doc)} · {totalPages} Pages · {wordInfo.estimated ? `Ingestion: ~${wordInfo.text} words (estimate)` : `Ingestion: ${wordInfo.text} words extracted without editorial modification`}</p>
             </div>
           </div>
         </div>
         <div className="bd-telemetry">
           <div><span>Claims Extracted</span><strong>{buckets.total} / {claims.length} <em>{buckets.total === claims.length && claims.length ? '100% complete' : 'in progress'}</em></strong></div>
           <div><span>Corpus Word Count</span><strong>{wordInfo.text} <em>words{wordInfo.estimated ? ' (estimate)' : ''}</em></strong></div>
-          <div><span>Orchestration State</span><strong className="bd-tri">Tri-Agent Consensus</strong></div>
-          <div><span>Adjudication Engine</span><strong>Meta Llama 3.3 <em>70B</em></strong></div>
+          <div><span>Checking</span><strong className="bd-tri">{dossierCheckingLabel(claims)}</strong></div>
+          <div><span>Adjudication Engine</span><strong>{dossierEngineLabel(claims)}</strong></div>
         </div>
       </section>
 
       <div className="bd-cards" role="group" aria-label="Filter by verdict">
         {BUCKETS.map((b) => (
           <button key={b.key} type="button" className={`bd-card b-${b.key}${bucket === b.key ? ' on' : ''}`} onClick={() => onBucket?.(bucket === b.key ? 'all' : b.key)} aria-pressed={bucket === b.key}>
-            <span className="bd-card-head"><span>{b.label}</span><em>{buckets.total ? `${buckets[`${b.key}Pct`]}%` : '—'}</em></span>
+            <span className="bd-card-head"><span>{b.label}</span><em>{buckets.total ? `${dossierPctFor(buckets, b.key)}%` : '—'}</em></span>
             <span className="bd-card-num">{counts[b.key]}<small> of {buckets.total} assertions</small></span>
-            <span className="bd-bar" aria-hidden="true"><span style={{ width: `${buckets[`${b.key}Pct`]}%` }} /></span>
+            <span className="bd-bar" aria-hidden="true"><span style={{ width: `${dossierPctFor(buckets, b.key)}%` }} /></span>
             <span className="bd-card-note">{b.note}</span>
           </button>
         ))}
@@ -230,18 +258,20 @@ export function BookDossier({
 
           <section className="bd-panel">
             <h3><Icon name="library" />Inspection Dossier</h3>
-            <p className="small">Generate cryptographically signed audit documents for publishers, peer review panels, or editorial fact-checking desks.</p>
-            <button type="button" className="btn secondary bd-wide" disabled={!firstExportable} onClick={() => firstExportable && onExportClaim?.(doc.id, firstExportable.id)}><Icon name="download" />Export Section Report (PDF)</button>
+            <p className="small">Download a report or the claim citations for this document.</p>
+            <button type="button" className="btn secondary bd-wide" disabled={!firstExportable} onClick={() => firstExportable && onExportClaim?.(doc.id, firstExportable.id)}><Icon name="download" />Export Section Report (Markdown)</button>
             <button type="button" className="btn secondary bd-wide" disabled={!firstExportable} onClick={() => checkedClaims.length && downloadJsonFile(`truthlens-citations-${doc.id}.json`, serializeClaimCitations(doc, checkedClaims))}><Icon name="download" />Claim Citations JSON</button>
-            <button type="button" className="btn bd-wide" onClick={onDebate}><Icon name="question" />Send to Tri-Agent Debate Room</button>
+            <button type="button" className="btn bd-wide" onClick={onDebate}><Icon name="question" />Discuss this verdict</button>
           </section>
 
           <section className="bd-panel bd-seal">
-            <p className="meta">Cryptographic Corpus Seal</p>
-            <p className="small">Raw text checksum matches ingested artifact without LLM hallmarking. No hidden instruction injection or prompt contamination detected in source payload.</p>
+            <p className="meta">About this copy</p>
+            <p className="small">We store the text as we extracted it. Each checked claim above links back to its page and its cited passages.</p>
           </section>
         </aside>
       </div>
     </div>
   );
 }
+// Legacy alias: pre-rename component name. Do not use in new code.
+export const BookDossier = ExcerptDossier;

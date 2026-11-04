@@ -92,9 +92,9 @@ test('recordInvestigation drops ephemeral verdict fields instead of persisting t
   }
 });
 
-test('listHistory covers book claims and standalone claims in one list, newest first', async () => {
+test('listHistory covers excerpt claims and standalone claims in one list, newest first', async () => {
   const doc = await createDocument({
-    title: 'Memory Book', owner: 'reader-b',
+    title: 'Memory Excerpt', owner: 'reader-b',
     pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens everywhere today. Humans only use 10 percent of their brains according to the old myth repeated here.' }],
   });
   await whenAutoVerificationDone(doc.id);
@@ -103,7 +103,7 @@ test('listHistory covers book claims and standalone claims in one list, newest f
   const all = await listHistory('reader-b');
   const workflows = new Set(all.map((e) => e.workflow));
   assert.ok(workflows.has('claim'), 'standalone workflow present');
-  assert.ok(workflows.has('book'), `book workflow present, got ${[...workflows]}`);
+  assert.ok(workflows.has('excerpt'), `excerpt workflow present, got ${[...workflows]}`);
   assert.ok(all.length >= 2);
   const times = all.map((e) => e.at);
   assert.deepEqual(times, [...times].sort().reverse(), 'entries sort newest first');
@@ -119,8 +119,8 @@ test('listHistory narrows by search words, verdict, and workflow', async () => {
   const byVerdict = await listHistory('reader-c', { verdict: 'Contradicted' });
   assert.ok(byVerdict.length >= 1 && byVerdict.every((e) => e.verdict === 'Contradicted'), 'verdict filter keeps only matches');
 
-  const byWorkflow = await listHistory('reader-c', { workflow: 'book' });
-  assert.ok(byWorkflow.every((e) => e.workflow === 'book'), 'workflow filter keeps only matches');
+  const byWorkflow = await listHistory('reader-c', { workflow: 'excerpt' });
+  assert.ok(byWorkflow.every((e) => e.workflow === 'excerpt'), 'workflow filter keeps only matches');
 });
 
 test('listHistory does not leak another owner history when accounts scope it', async () => {
@@ -256,13 +256,13 @@ test('verifyClaimBatch keeps typed order, isolates one failure, and records the 
   assert.ok(!entries.some((e) => /middle claim/.test(e.text)), 'failed claim was not recorded as a verdict');
 });
 
-test('a deleted demo book is not seeded back on the next listing', async () => {
+test('a deleted demo excerpt is not seeded back on the next listing', async () => {
   const seeded = await seedDemo();
-  const demo = seeded.find((d) => d.title === 'The Mind, Examined — demo book');
-  assert.ok(demo, 'first listing seeds the demo book');
+  const demo = seeded.find((d) => d.title === 'The Mind, Examined — demo excerpt');
+  assert.ok(demo, 'first listing seeds the demo excerpt');
   await deleteDocument(demo.id);
   const after = await seedDemo();
-  assert.ok(!after.some((d) => d.title === 'The Mind, Examined — demo book'), 'the deleted demo book stays deleted');
+  assert.ok(!after.some((d) => d.title === 'The Mind, Examined — demo excerpt'), 'the deleted demo excerpt stays deleted');
 });
 
 test('verify route replay keeps the honest demo label instead of claiming live', async () => {

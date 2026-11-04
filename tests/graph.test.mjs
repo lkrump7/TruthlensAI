@@ -31,7 +31,7 @@ test('trajectory entries match the registered graph node names', async () => {
 
 test('graph short-circuits opinions at triage without researching', async () => {
   let searched = 0;
-  const r = await runInvestigationGraph('I think this is the finest book ever written.', { search: async () => { searched++; return search(); }, fetchText, judge, challenge: null });
+  const r = await runInvestigationGraph('I think this is the finest excerpt ever written.', { search: async () => { searched++; return search(); }, fetchText, judge, challenge: null });
   assert.equal(r.verdict, 'Not fact-checkable');
   assert.deepEqual(r.trajectory, ['triage']);
   assert.equal(searched, 0);

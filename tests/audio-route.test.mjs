@@ -96,6 +96,18 @@ test('audio route stores a transcript document from a wav upload', async (t) => 
   assert.equal(stored.media.durationSec, body.document.media.durationSec);
 });
 
+test('audio route keeps a playable copy when the filename has no usable extension', async (t) => {
+  let wav;
+  try { wav = await makeToneWav(); } catch { t.skip('ffmpeg not available'); return; }
+  const asrFetch = async () => ({ ok: true, status: 200, json: async () => ({ transcript: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }) });
+  const res = await withLiveEnv(asrFetch, () => audioPost(uploadReq('http://t/api/documents/audio', 'Audio recording', wav, 'audio/wav')));
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.ok(body.document.media.file, 'the viewer gets a file to play, not text only');
+  assert.equal(body.document.media.file.mime, 'audio/mpeg', 'the copy is stored as MP3 every browser plays');
+  assert.equal(body.warning, undefined, 'no missing-file warning when a playable copy was kept');
+});
+
 test('audio route returns 422 when nothing transcribed', async (t) => {
   let wav;
   try { wav = await makeToneWav(); } catch { t.skip('ffmpeg not available'); return; }

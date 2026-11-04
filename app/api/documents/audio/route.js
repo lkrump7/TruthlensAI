@@ -1,5 +1,5 @@
 import { createDocument, publicDocument } from '../../../../lib/documents.mjs';
-import { audioToPages, mimeForAudioFile, MAX_AUDIO_FILE_BYTES } from '../../../../lib/audio.mjs';
+import { audioToPages, mimeForAudioFile, makePlaybackAudio, MAX_AUDIO_FILE_BYTES } from '../../../../lib/audio.mjs';
 import { voiceModel } from '../../../../lib/voice.mjs';
 import { liveStatus, getModels } from '../../../../lib/meta.mjs';
 import { authEnabled, requestUser } from '../../../../lib/auth.mjs';
@@ -53,6 +53,16 @@ export async function POST(req) {
   if (storedMime) {
     try {
       stored = await storeOriginal(buffer, storedMime, file.name);
+    } catch (e) {
+      console.error('[documents/audio] original file not stored:', e);
+    }
+  } else if (String(file.type || '').startsWith('audio/')) {
+    // The filename names no playable format, so nothing may be stored
+    // under the client's label. The bytes just transcribed successfully,
+    // which proves they hold audio: keep an MP3 copy every browser plays.
+    try {
+      const playback = await makePlaybackAudio(buffer, { ext: '' });
+      if (playback.mime) stored = await storeOriginal(playback.buffer, playback.mime, file.name);
     } catch (e) {
       console.error('[documents/audio] original file not stored:', e);
     }

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { challengeStage } from '../lib/stages.mjs';
+import { challengeStage, gateStage } from '../lib/stages.mjs';
 
 const cited = [{ id: 'ev-1', passage: 'Water boils at 100C at sea level.', source: 'example.com' }];
 const currentOf = () => ({
@@ -17,6 +17,15 @@ test('a throwing revision judge keeps the pre-challenge verdict instead of faili
   });
   assert.equal(out.gated.verdict, 'Supported');
   assert.equal(out.challenge, undefined);
+});
+
+test('gateStage stamps the judge stance onto cited items', () => {
+  const evidence = [{ id: 'ev-web-11', passage: 'It is a myth.', source: 'factscheck.co.uk', stance: 'unknown' }];
+  const result = { verdict: 'Contradicted', citedIds: ['ev-web-11'], stances: { 'ev-web-11': 'contradicts' }, explanation: 'myth' };
+  const { gated } = gateStage(result, evidence, { runs: 3, verdicts: ['Contradicted', 'Contradicted', 'Contradicted'], agreed: true, majority: 'Contradicted' });
+  assert.equal(gated.verdict, 'Contradicted');
+  assert.equal(gated.contradicting.length, 1);
+  assert.equal(gated.contradicting[0].stance, 'contradicts');
 });
 
 test('a successful revision still replaces the verdict', async () => {

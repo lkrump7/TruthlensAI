@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dossierBuckets, chapterIndexForPage, filterDossierClaims } from '../lib/ui-state.mjs';
 
-const dossierSrc = readFileSync(new URL('../app/components/book-dossier.js', import.meta.url), 'utf8');
+const dossierSrc = readFileSync(new URL('../app/components/excerpt-dossier.js', import.meta.url), 'utf8');
 
 // The dossier component ships JSX, which node:test cannot import, so the
 // pure helpers live in a marked dependency-free block that the tests below
@@ -11,14 +11,14 @@ const dossierSrc = readFileSync(new URL('../app/components/book-dossier.js', imp
 function loadDossierHelpers() {
   const start = dossierSrc.indexOf('// dossier-pure-helpers:start');
   const end = dossierSrc.indexOf('// dossier-pure-helpers:end');
-  assert.ok(start !== -1 && end !== -1 && end > start, 'book-dossier keeps an extractable pure-helper block');
+  assert.ok(start !== -1 && end !== -1 && end > start, 'excerpt-dossier keeps an extractable pure-helper block');
   const block = dossierSrc
     .slice(start, end)
     .split('\n')
     .filter((line) => !line.includes('dossier-pure-helpers:'))
     .map((line) => line.replace(/^export\s+/, ''))
     .join('\n');
-  return new Function(`${block}\nreturn { dossierWordDisplay, dossierDocId, serializeClaimCitations };`)();
+  return new Function(`${block}\nreturn { dossierWordDisplay, dossierDocId, serializeClaimCitations, dossierPctFor };`)();
 }
 
 const claims8 = [
@@ -144,6 +144,30 @@ test('dossier never shows a fabricated hash or an unlabelled estimate', () => {
   assert.ok(!dossierSrc.includes('b84c'), 'no hardcoded hash suffix in the dossier');
   assert.ok(dossierSrc.includes('Doc ID:'), 'dossier shows an honest doc id');
   assert.ok(dossierSrc.includes('(estimate)'), 'estimates are labelled as estimates');
+});
+
+test('dossierPctFor resolves every dashboard card key to its bucket percentage', () => {
+  const { dossierPctFor } = loadDossierHelpers();
+  assert.equal(typeof dossierPctFor, 'function');
+  const b = dossierBuckets(claims8);
+  assert.equal(dossierPctFor(b, 'supported'), 62.5);
+  assert.equal(dossierPctFor(b, 'contradicted'), 12.5);
+  assert.equal(dossierPctFor(b, 'partially'), 12.5);
+  assert.equal(dossierPctFor(b, 'unverifiable'), 12.5);
+});
+
+test('dossierPctFor stays numeric when nothing is checked yet', () => {
+  const { dossierPctFor } = loadDossierHelpers();
+  const b = dossierBuckets([]);
+  for (const key of ['supported', 'contradicted', 'partially', 'unverifiable']) {
+    assert.equal(dossierPctFor(b, key), 0);
+  }
+  assert.equal(dossierPctFor(null, 'partially'), 0);
+});
+
+test('dossier cards read percentages through the keyed lookup, not a template field', () => {
+  assert.ok(dossierSrc.includes('dossierPctFor(buckets'), 'cards use the keyed pct lookup');
+  assert.ok(!dossierSrc.includes('`${b.key}Pct`'), 'no dynamic Pct field remains');
 });
 
 test('page bins read as sections, never real chapters', () => {

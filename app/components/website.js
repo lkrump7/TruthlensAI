@@ -18,6 +18,10 @@ export function WebsiteScrutiny({
   onExport,
   onRecrawl,
   onDebate,
+  onVerify,
+  onDismiss,
+  onRestore,
+  dismissedClaims = [],
   busy,
 }) {
   const t = telemetry || { words: 0, paragraphs: 0, total: 0, supported: 0, contradicted: 0, partial: 0, neutralized: 0, host: '' };
@@ -77,7 +81,7 @@ export function WebsiteScrutiny({
         <div className="scr-card">
           <span className="meta">Assertion yield</span>
           <strong>{t.total} claim{t.total === 1 ? '' : 's'}</strong>
-          <span className="small">{t.contradicted} fail / {t.supported} pass{unchecked > 0 ? ` / ${unchecked} unchecked` : ''}</span>
+          <span className="small">{t.contradicted} fail / {t.supported} pass{unchecked > 0 ? ` / ${unchecked} unchecked` : ''}{t.dismissed > 0 ? ` / ${t.dismissed} dismissed` : ''}</span>
         </div>
         <div className="scr-card">
           <span className="meta">Injection deflector</span>
@@ -149,19 +153,36 @@ export function WebsiteScrutiny({
                 </p>
                 <div className="scr-claim-actions">
                   <button type="button" className="linklike" onClick={() => onInspect(c)}><Icon name="view" />Inspect snippet</button>
+                  {!c.verdict && onVerify && <button type="button" className="linklike" onClick={() => onVerify(c)}><Icon name="verify" />Check this claim</button>}
                   {c.verdict && <button type="button" className="linklike" onClick={() => onChallenge(c)}><Icon name="question" />Challenge</button>}
                   {c.verdict && <button type="button" className="linklike" onClick={() => onExport(c)}><Icon name="download" />Save dossier</button>}
+                  {onDismiss && <button type="button" className="linklike" onClick={() => onDismiss(c)}><Icon name="trash" />Dismiss</button>}
                 </div>
               </article>
             );
           })}
+          {dismissedClaims.length > 0 && (
+            <div className="scr-dismissed" data-dismissed>
+              <p className="meta">Dismissed by you ({dismissedClaims.length})</p>
+              <p className="small">Set aside as boilerplate or not worth checking. Out of the totals until restored.</p>
+              {dismissedClaims.map((c) => (
+                <article className="scr-claim is-dismissed" key={c.id}>
+                  <p className="scr-claim-text">“{c.text}”</p>
+                  <div className="scr-claim-actions">
+                    {onRestore && <button type="button" className="linklike" onClick={() => onRestore(c)}><Icon name="refresh" />Restore</button>}
+                    {onVerify && <button type="button" className="linklike" onClick={() => onVerify(c)}><Icon name="verify" />Check this claim</button>}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
       <p className="scr-prov small">
         <span>Document #{shortId}</span>
         <span> · </span>
-        <span>{t.supported + t.contradicted + t.partial} of {t.total} claims checked</span>
+        <span>{t.supported + t.contradicted + t.partial} of {t.total} claims checked{t.dismissed > 0 ? ` · ${t.dismissed} dismissed` : ''}</span>
       </p>
     </section>
   );

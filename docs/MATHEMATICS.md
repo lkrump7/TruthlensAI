@@ -38,8 +38,8 @@ relevance checks and utility scoring.
 Thresholds were recalibrated to the TF-IDF cosine scale from measured
 scores, not carried over: duplicate and contradiction pairs score at
 least 0.877, topically distinct claims at most 0.603, so
-`DEDUPE_THRESHOLD = 0.8` sits in the middle of a wide gap. Book-passage
-matching uses `BOOK_PASSAGE_THRESHOLD = 0.05`: a claim split across a
+`DEDUPE_THRESHOLD = 0.8` sits in the middle of a wide gap. Excerpt-passage
+matching uses `EXCERPT_PASSAGE_THRESHOLD = 0.05`: a claim split across a
 page break scored 0.088 on its first page, under the old 0.12 bar.
 
 Two later additions, same discipline. Number words fold into digits

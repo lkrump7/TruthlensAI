@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseHash, buildHash, filterClaims, createDebounced, uploadSizeError, detectCheckInput, timeAgo, claimCategory, safeResponseJson } from '../lib/ui-state.mjs';
+import { parseHash, buildHash, filterClaims, createDebounced, uploadSizeError, detectCheckInput, timeAgo, claimCategory, safeResponseJson, sortHistoryRowsNewestFirst } from '../lib/ui-state.mjs';
 
 test('buildHash writes a readable route for every view', () => {
   assert.equal(buildHash({ tab: 'home' }), '#/home');
@@ -97,18 +97,30 @@ test('timeAgo names recency the way the vault shows it', () => {
 });
 
 test('claimCategory sorts documents into vault tabs', () => {
-  assert.equal(claimCategory({ kind: 'book' }), 'book');
+  assert.equal(claimCategory({ kind: 'excerpt' }), 'excerpt');
   assert.equal(claimCategory({ kind: 'website' }), 'paper');
   assert.equal(claimCategory({ kind: 'image' }), 'scan');
   assert.equal(claimCategory({ kind: 'video' }), 'scan');
-  assert.equal(claimCategory({ kind: 'history' }), 'book');
-  assert.equal(claimCategory({}), 'book');
-  assert.equal(claimCategory(null), 'book');
+  assert.equal(claimCategory({ kind: 'history' }), 'excerpt');
+  assert.equal(claimCategory({}), 'excerpt');
+  assert.equal(claimCategory(null), 'excerpt');
 });
 
 test('safeResponseJson returns parsed JSON and {} on non-JSON bodies', async () => {
   assert.deepEqual(await safeResponseJson({ json: async () => ({ document: { title: 'T' } }) }), { document: { title: 'T' } });
   assert.deepEqual(await safeResponseJson({ json: async () => { throw new SyntaxError('Unexpected token'); } }), {});
+});
+
+test('sortHistoryRowsNewestFirst shows the most recent check first', () => {
+  const rows = [
+    { doc: { id: 'doc-old', title: 'Old excerpt', kind: 'excerpt', createdAt: '2026-01-01T10:00:00.000Z' }, claim: { id: 'c-old', text: 'Old claim.', verdict: 'Supported', history: [{ at: '2026-01-01T10:00:00.000Z', verdict: 'Supported' }] }, single: false },
+    { doc: { id: 'doc-h', title: 'Single check', kind: 'text', createdAt: '2026-11-01T10:00:00.000Z' }, claim: { id: 'c-new', text: 'New claim.', verdict: 'Supported', _entry: { at: '2026-11-01T10:00:00.000Z' } }, single: true },
+    { doc: { id: 'doc-mid', title: 'Mid excerpt', kind: 'excerpt', createdAt: '2026-06-01T10:00:00.000Z' }, claim: { id: 'c-mid', text: 'Mid claim.', verdict: 'Supported', history: [{ at: '2026-06-01T10:00:00.000Z', verdict: 'Supported' }] }, single: false },
+  ];
+  const sorted = sortHistoryRowsNewestFirst(rows);
+  assert.deepEqual(sorted.map((r) => r.claim.id), ['c-new', 'c-mid', 'c-old']);
+  assert.deepEqual(rows.map((r) => r.claim.id), ['c-old', 'c-new', 'c-mid'], 'input order is left alone');
+  assert.deepEqual(sortHistoryRowsNewestFirst([]), []);
 });
 
 test('createDebounced runs only the last call, and cancel drops it', async () => {

@@ -2,7 +2,7 @@
 
 ## Intent
 
-Images and videos enter TruthLens the same way books and websites do.
+Images and videos enter TruthLens the same way excerpts and websites do.
 An image becomes a document whose text is a caption. A video becomes a
 document whose text is a timestamped transcript plus frame descriptions.
 Claims are then pulled out and checked by the existing pipeline. Nothing

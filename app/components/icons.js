@@ -7,7 +7,7 @@ const ICON_PATHS = {
   list: <><path d="M9 6h11M9 12h11M9 18h11" /><path d="M4 6h.01M4 12h.01M4 18h.01" /></>,
   users: <><circle cx="9" cy="8.5" r="3.2" /><path d="M3.5 19.5c.6-3 2.8-4.5 5.5-4.5s4.9 1.5 5.5 4.5M16 5.7a3.2 3.2 0 0 1 0 5.9M17.5 15.3c1.7.6 2.7 1.9 3 4.2" /></>,
   claim: <><path d="M12 4v16" /><path d="M8 20h8" /><path d="M12 6H6m6 0h6" /><path d="M6 6 3.5 12a3.5 3.5 0 0 0 5 0L6 6Zm12 0-2.5 6a3.5 3.5 0 0 0 5 0L18 6Z" /></>,
-  book: <><path d="M12 6.5C10 5 7.4 4.4 4 4.4v13.2c3.4 0 6 .6 8 2.1 2-1.5 4.6-2.1 8-2.1V4.4c-3.4 0-6 .6-8 2.1Zm0 0v13.2" /></>,
+  excerpt: <><path d="M12 6.5C10 5 7.4 4.4 4 4.4v13.2c3.4 0 6 .6 8 2.1 2-1.5 4.6-2.1 8-2.1V4.4c-3.4 0-6 .6-8 2.1Zm0 0v13.2" /></>,
   website: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.6 3.8 5.7 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.7-3.8-9S9.5 5.6 12 3Z" /></>,
   question: <><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.2 0-2.4-.25-3.4-.7L3 20l.8-3.6A8.5 8.5 0 1 1 21 11.5Z" /><path d="M9.6 9.2A2.6 2.6 0 1 1 13.2 11c-.8.35-1.2 1-1.2 1.9" /><path d="M12 17h.01" /></>,
   library: <><path d="M4 20V6a2 2 0 0 1 2-2h2v16" /><path d="M8 20h12" /><path d="m12.5 5 3.8.9L13 19.4l-3.8-.9Z" /></>,
@@ -28,6 +28,7 @@ const ICON_PATHS = {
   sun: <><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2.4M12 19.1v2.4M4.3 4.3l1.7 1.7M18 18l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.3 19.7 6 18M18 6l1.7-1.7" /></>,
   moon: <><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z" /></>,
 };
+ICON_PATHS.book = ICON_PATHS.excerpt;
 export function Icon({ name }) {
   return <svg className="icon" data-icon={name} viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{ICON_PATHS[name]}</svg>;
 }

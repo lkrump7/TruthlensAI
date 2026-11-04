@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
-const dossier = read('../app/components/book-dossier.js');
+const dossier = read('../app/components/excerpt-dossier.js');
 const page = read('../app/page.js');
 const css = read('../app/globals.css');
 
@@ -14,13 +14,13 @@ test('dead Split Reader Mode toggle is gone from the dossier', () => {
   assert.ok(!dossier.includes('data-split-reader'), 'no dead split-reader panel');
 });
 
-test('Check-a-book tab keeps one persistent Ingest entry point on top', () => {
+test('Check-a-excerpt tab keeps one persistent Ingest entry point on top', () => {
   assert.ok(page.includes("tool === 'document'"), 'document tool branch exists');
-  assert.ok(page.includes('data-ingest-topbar'), 'persistent ingest topbar in Check-a-book tab');
+  assert.ok(page.includes('data-ingest-topbar'), 'persistent ingest topbar in Check-a-excerpt tab');
   assert.ok(page.includes('Ingest New Manuscript'), 'topbar labels the ingest action');
   assert.ok(page.includes('ingest-hero'), 'ingest button uses the hero size class');
   const bar = page.indexOf('data-ingest-topbar');
-  const dossierAt = page.indexOf('<BookDossier');
+  const dossierAt = page.indexOf('<ExcerptDossier');
   assert.ok(bar > -1 && dossierAt > bar, 'topbar renders above the dossier');
 });
 

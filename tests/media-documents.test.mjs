@@ -25,9 +25,9 @@ test('createDocument keeps image and video kinds and their media summary', async
   assert.equal(vid.kind, 'video');
   assert.equal(vid.media.durationSec, 75);
 
-  const book = await createDocument({ title: 'Plain', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
-  assert.equal(book.kind, 'book');
-  assert.equal(book.media, undefined);
+  const excerpt = await createDocument({ title: 'Plain', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
+  assert.equal(excerpt.kind, 'excerpt');
+  assert.equal(excerpt.media, undefined);
 });
 
 test('mimeForVideoFile maps common video extensions and rejects others', () => {

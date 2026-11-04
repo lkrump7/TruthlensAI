@@ -11,7 +11,7 @@ gathered while building. It separates what is independently checkable
 |---|---|
 | 2026-10-30 23:48 | First app files created (`app/layout.js`, `app/globals.css`) |
 | 2026-10-31 00:15–01:40 | Core engine, Meta client, FAISS sidecar, PDF extraction, auth, first test suites |
-| 2026-10-31 morning | Book-scale processing, Evidence Forensics, Adversarial Self-Correction, Evidence Intelligence Report, Knowledge Contradiction Map |
+| 2026-10-31 morning | Excerpt-scale processing, Evidence Forensics, Adversarial Self-Correction, Evidence Intelligence Report, Knowledge Contradiction Map |
 | 2026-10-31 11:15 | `docs/PRINCIPLES.md` — truthfulness invariants codified; roll-up, evidence-pool relevance, and contradiction-map honesty aligned to them |
 | 2026-10-31 11:29–11:44 | Design-pattern hardening (repository split, rank-backend adapter, specification gates, typed errors), bug-hunt fixes, test-coverage expansion |
 | 2026-10-31 11:48 | This provenance record written; public GitHub repository created and pushed (GitHub's repo `created_at` and the initial commit timestamp are the independently checkable proof from this point on) |
@@ -63,7 +63,7 @@ FAISS_SERVICE_URL=http://127.0.0.1:8100 npm start
 Reader-directed investigation shipped: all extracted claims preserved with
 visible Not-yet-verified state, background top-20 verification with
 pause/resume, on-demand claim verification, reader-submitted claims and
-theories assessed against book passages (page numbers, author stance kept
+theories assessed against excerpt passages (page numbers, author stance kept
 separate from evidence) and external research, and recorded verdict
 challenges. A pre-existing chunker bug found during this work — pages
 ending mid-sentence lost all but their last word — was fixed at the root
@@ -73,7 +73,7 @@ with a regression test. Suite at this point: 163 tests.
 
 Post-audit fix round, each change test-first with a measured before/after:
 challenge kinds now do different work (compare-author compares against
-book passages without re-verdicting; stronger-contrary reports opposing
+excerpt passages without re-verdicting; stronger-contrary reports opposing
 domains; prove-wrong reports a falsifier and whether one was found) —
 previously all three reran the identical verification. Auto-verification
 re-reads stored state between claims, so pause works on copy-semantics
@@ -145,7 +145,7 @@ claims, 18 passages): P@3 0.444 -> 0.667, MRR 0.771 -> 1.000,
 hit@3 0.833 -> 1.000. Two thresholds were recalibrated from measured
 TF-IDF scores rather than carried over: DEDUPE_THRESHOLD 0.92 -> 0.8
 (duplicates >= 0.877, distinct claims <= 0.603) and a new
-BOOK_PASSAGE_THRESHOLD 0.05 for page-split claims (first page scored
+EXCERPT_PASSAGE_THRESHOLD 0.05 for page-split claims (first page scored
 0.088). Full justification in docs/MATHEMATICS.md section 1.
 Suite at this point: 206 tests.
 
@@ -160,7 +160,7 @@ the index and benchmarked against TF-IDF cosine: tied on the labelled
 benchmark (P@3 0.667, MRR 1.000 both), better on term-frequency
 saturation by test. It is wired only into fetched-page window ranking,
 where no calibrated threshold consumes its unbounded score; cosine
-keeps dedupe and book-passage matching. Suite at this point: 208 tests.
+keeps dedupe and excerpt-passage matching. Suite at this point: 208 tests.
 
 ## Update — 2026-10-31 (semantic embeddings, local record)
 
@@ -186,7 +186,7 @@ All seven ranked NLP improvements implemented, each test-first:
 the evidence pool cut, bi-encoder fallback intact; (2) deterministic
 query expansion (claim, keyword core, study angle, criticism angle,
 no verdict words) sent to Meta search grounding; (3) semantic
-chunking for books, splitting at within-page topic boundaries with
+chunking for excerpts, splitting at within-page topic boundaries with
 fixed-chunker fallback; (4) NLI stance labels (DeBERTa MNLI) on cited
 evidence with judge-agreement reported as nliChecks, never gated;
 (5) negation and hedging cues as forensics annotations; (6) temporal

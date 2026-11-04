@@ -43,7 +43,7 @@ test('non-owner writes to a shared demo doc are refused on all five mutating rou
     const verifyRoute = await import('../app/api/documents/[id]/claims/[claimId]/verify/route.js');
     const repo = repository();
     await repo.save({
-      id: 'access-demo-1', owner: 'demo', kind: 'book', title: 'Shared demo',
+      id: 'access-demo-1', owner: 'demo', kind: 'excerpt', title: 'Shared demo',
       createdAt: new Date().toISOString(), pages: 1, chunks: [], status: 'ready',
       claims: [{ id: 'access-demo-1-claim-1', text: 'Water boils at 100 degrees Celsius at sea level.', type: 'fact', status: 'unverified' }],
     });
@@ -58,7 +58,7 @@ test('non-owner writes to a shared demo doc are refused on all five mutating rou
     assert.equal((await verifyRoute.POST(post({}), { params: { id: 'access-demo-1', claimId: 'access-demo-1-claim-1' } })).status, 404);
     // The owner can still write.
     await repo.save({
-      id: 'access-alice-1', owner: 'alice', kind: 'book', title: 'Alice doc',
+      id: 'access-alice-1', owner: 'alice', kind: 'excerpt', title: 'Alice doc',
       createdAt: new Date().toISOString(), pages: 1, chunks: [], claims: [], status: 'ready',
     });
     const alice = `tl_session=${encodeURIComponent(auth.createSessionToken('alice', auth.authSecret()))}`;
@@ -118,7 +118,7 @@ test('challenge custom text over the claim limit is rejected with 413', async ()
     const { CONFIG } = await import('../lib/config.mjs');
     const challengeRoute = await import('../app/api/documents/[id]/claims/[claimId]/challenge/route.js');
     await repository().save({
-      id: 'access-long-1', owner: 'demo', kind: 'book', title: 'Long challenge',
+      id: 'access-long-1', owner: 'demo', kind: 'excerpt', title: 'Long challenge',
       createdAt: new Date().toISOString(), pages: 1, chunks: [], status: 'ready',
       claims: [{ id: 'access-long-1-claim-1', text: 'Water boils at sea level.', type: 'fact', status: 'unverified' }],
     });

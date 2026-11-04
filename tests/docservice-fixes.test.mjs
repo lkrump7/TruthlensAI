@@ -91,14 +91,14 @@ test('contradiction map surfaces opposing positions as unverified disagreement',
   // as unverified disagreement — never presented as a verified verdict.
   const { buildContradictionMap } = await import('../lib/contradictions.mjs');
   const pair = (statusA, verdictA, statusB, verdictB) => ([
-    { id: 'd1', title: 'Book A', claims: [{ id: 'a', text: 'Artificial intelligence increases employment across the economy.', status: statusA, verdict: verdictA, page: 1 }] },
-    { id: 'd2', title: 'Book B', claims: [{ id: 'b', text: 'Artificial intelligence reduces employment across the economy.', status: statusB, verdict: verdictB, page: 4 }] },
+    { id: 'd1', title: 'Excerpt A', claims: [{ id: 'a', text: 'Artificial intelligence increases employment across the economy.', status: statusA, verdict: verdictA, page: 1 }] },
+    { id: 'd2', title: 'Excerpt B', claims: [{ id: 'b', text: 'Artificial intelligence reduces employment across the economy.', status: statusB, verdict: verdictB, page: 4 }] },
   ]);
   const draft = buildContradictionMap(pair('pending', undefined, 'pending', undefined));
   assert.equal(draft.length, 1, 'an unverified opposing pair still maps');
   assert.equal(draft[0].verifiedDisagreement, false, 'it is marked unverified disagreement, not verified');
   const single = buildContradictionMap([
-    { id: 'd1', title: 'Book A', claims: [{ id: 'a', text: 'Artificial intelligence increases employment across the economy.', status: 'verified', verdict: 'Supported', page: 1 }] },
+    { id: 'd1', title: 'Excerpt A', claims: [{ id: 'a', text: 'Artificial intelligence increases employment across the economy.', status: 'verified', verdict: 'Supported', page: 1 }] },
   ]);
   assert.equal(single.length, 0, 'one document alone is not a contradiction');
 });

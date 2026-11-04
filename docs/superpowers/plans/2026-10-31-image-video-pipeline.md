@@ -77,9 +77,9 @@
 - Test: `tests/media-documents.test.mjs`
 
 **Interfaces:**
-- `createDocument({ ..., kind: 'book'|'website'|'image'|'video', sourceUrl?, media? })` stores `kind` verbatim for the four known kinds (unknown → `book`), stores `media` when given. Existing website behavior unchanged.
+- `createDocument({ ..., kind: 'excerpt'|'website'|'image'|'video', sourceUrl?, media? })` stores `kind` verbatim for the four known kinds (unknown → `excerpt`), stores `media` when given. Existing website behavior unchanged.
 
-- [ ] Failing test: image doc keeps `kind:'image'` and `media.caption`; video doc keeps `kind:'video'`; default stays `book`.
+- [ ] Failing test: image doc keeps `kind:'image'` and `media.caption`; video doc keeps `kind:'video'`; default stays `excerpt`.
 - [ ] RED, implement (replace the website ternary with a known-kinds set), GREEN with `tests/reader.test.mjs tests/integration.test.mjs`.
 
 ### Task 5: Routes
@@ -102,7 +102,7 @@
 - Test: `tests/ui.test.mjs` patterns if it asserts upload copy — check before editing.
 
 - [ ] Extend `uploadFile`: image exts → `/api/documents/image`, video exts → `/api/documents/video`.
-- [ ] Kind labels: `Image · caption by Muse Spark` / `Video · transcript by Muse Voice Transcribe` instead of "Book or pasted document".
+- [ ] Kind labels: `Image · caption by Muse Spark` / `Video · transcript by Muse Voice Transcribe` instead of "Excerpt or pasted document".
 - [ ] Run UI tests.
 
 ### Task 7: Verification

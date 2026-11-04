@@ -57,7 +57,7 @@ test('verifyStandalone hides raw live-failure internals from the reader', async 
 
 test('document verification hides raw live-failure internals from the reader', async () => {
   const doc = await createDocument({
-    title: 'Leak book', owner: 'leak-test',
+    title: 'Leak excerpt', owner: 'leak-test',
     pages: [{ page: 1, text: 'Honey never spoils in sealed jars kept cool and dry for years.' }],
   });
   await whenAutoVerificationDone(doc.id);
@@ -80,7 +80,7 @@ test('document verification hides raw live-failure internals from the reader', a
 
 test('author-stance fallback hides raw live-failure internals from the reader', async () => {
   const doc = await createDocument({
-    title: 'Stance book', owner: 'leak-stance-test',
+    title: 'Stance excerpt', owner: 'leak-stance-test',
     pages: [{ page: 1, text: 'Oats keep a person full for hours after a morning bowl with milk.' }],
   });
   await whenAutoVerificationDone(doc.id);

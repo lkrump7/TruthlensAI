@@ -73,7 +73,7 @@ test('keeps a single simple claim as one claim', () => {
 });
 
 test('classifies opinion as not fact-checkable', () => {
-  assert.equal(classifyClaim('I think this book is the best ever written.'), 'Not fact-checkable');
+  assert.equal(classifyClaim('I think this excerpt is the best ever written.'), 'Not fact-checkable');
   assert.equal(classifyClaim('Humans only use 10% of their brains.'), 'Scientific');
 });
 

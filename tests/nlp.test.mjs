@@ -59,6 +59,13 @@ test('number words normalize to digits so 80 and eighty are the same term', () =
   assert.deepEqual(numbersIn('No numbers in this sentence at all.'), []);
 });
 
+test('grouped digits read as one number so 8,849 and 8849 are the same term', () => {
+  assert.deepEqual(numbersIn('Everest is 8,849 metres tall.'), [8849]);
+  assert.deepEqual(numbersIn('Everest is 8849 metres tall.'), [8849]);
+  assert.deepEqual(numbersIn('Light travels 300,000 kilometres per second.'), [300000]);
+  assert.deepEqual(normalizedTokens('A crowd of 1,250,000 people.'), normalizedTokens('A crowd of 1250000 people.'));
+});
+
 test('temporal normalisation reads in-text dates and relative offsets', () => {
   assert.equal(inTextDate('Results were published in June 2019 in the journal.'), '2019-06-01');
   assert.equal(inTextDate('The reservoir opened in 1998 after construction.'), '1998-01-01');

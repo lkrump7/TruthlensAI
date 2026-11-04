@@ -7,10 +7,18 @@ test('DECISIVE_VERDICTS holds Supported and Contradicted (TL-017)', () => {
 });
 
 test('corroboration gate downgrades a decisive verdict backed by one domain', () => {
-  const ctx = { verdict: 'Contradicted', supporting: [], contradicting: [{ id: 'a', source: 'x.com' }], cited: [{ id: 'a', source: 'x.com' }], limitations: [] };
+  const ctx = { verdict: 'Supported', supporting: [{ id: 'a', source: 'x.com' }], contradicting: [], cited: [{ id: 'a', source: 'x.com' }], limitations: [] };
   const out = applyCorroborationGate(ctx);
   assert.equal(out.verdict, 'Partially supported');
   assert.ok(out.limitations.some((l) => /single independent source/i.test(l)));
+});
+
+test('corroboration gate keeps a single-domain Contradicted verdict Contradicted', () => {
+  const ctx = { verdict: 'Contradicted', supporting: [], contradicting: [{ id: 'a', source: 'x.com' }], cited: [{ id: 'a', source: 'x.com' }], limitations: [] };
+  const out = applyCorroborationGate(ctx);
+  assert.equal(out.verdict, 'Contradicted');
+  assert.ok(out.limitations.some((l) => /single independent source/i.test(l)));
+  assert.ok(!out.limitations.some((l) => /downgraded/i.test(l)));
 });
 
 test('corroboration gate leaves a two-domain decisive verdict alone', () => {

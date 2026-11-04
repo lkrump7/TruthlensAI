@@ -1,5 +1,5 @@
 import { createDocument, publicDocument } from '../../../../lib/documents.mjs';
-import { videoToPages, mimeForVideoFile, MAX_VIDEO_BYTES } from '../../../../lib/video.mjs';
+import { videoToPages, mimeForVideoFile, makePlaybackVideo, MAX_VIDEO_BYTES } from '../../../../lib/video.mjs';
 import { voiceModel } from '../../../../lib/voice.mjs';
 import { liveStatus, getModels } from '../../../../lib/meta.mjs';
 import { authEnabled, requestUser } from '../../../../lib/auth.mjs';
@@ -51,7 +51,12 @@ export async function POST(req) {
   let stored = null;
   if (storedMime) {
     try {
-      stored = await storeOriginal(buffer, storedMime, file.name);
+      // Store a copy the browser can actually play with sound: uploads
+      // whose audio codec browsers cannot decode (AC-3, DTS, PCM, most
+      // Matroska files) are re-encoded to AAC in MP4 first.
+      const ext = String(file.name || '').toLowerCase().match(/\.[a-z0-9]+$/)?.[0] || '';
+      const playback = await makePlaybackVideo(buffer, { ext });
+      stored = await storeOriginal(playback.buffer, playback.mime || storedMime, file.name);
     } catch (e) {
       console.error('[documents/video] original file not stored:', e);
     }

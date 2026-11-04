@@ -21,15 +21,15 @@ const eventsRoute = await import('../app/api/documents/[id]/events/route.js');
 const { createSessionToken, authSecret } = await import('../lib/auth.mjs');
 const { CONFIG } = await import('../lib/config.mjs');
 
-const bigBook = () => {
+const bigExcerpt = () => {
   const pages = [];
-  for (let p = 1; p <= 60; p++) pages.push({ page: p, text: `Chapter background on page ${p} explains general context and definitions for readers of this book at length today.` });
+  for (let p = 1; p <= 60; p++) pages.push({ page: p, text: `Chapter background on page ${p} explains general context and definitions for readers of this excerpt at length today.` });
   pages[58] = { page: 59, text: 'The vaccine reduced hospitalisations by 80 percent among elderly residents in the trial.' };
   return pages;
 };
 
 test('createDocument preserves every extracted claim; only the top 20 are auto-selected', async () => {
-  const doc = await createDocument({ title: 'Big Book', owner: 'reader', pages: bigBook() });
+  const doc = await createDocument({ title: 'Big Excerpt', owner: 'reader', pages: bigExcerpt() });
   assert.equal(doc.claims.length, doc.foundClaims);
   assert.ok(doc.foundClaims > 20, `found ${doc.foundClaims}`);
   const auto = doc.claims.filter((c) => c.autoSelected);
@@ -47,7 +47,7 @@ test('duplicate claim text does not break the auto-verify cap (TL-008)', async (
     // claim objects with one text reach createDocument only through the
     // deps seam. Pin the cap where createDocument applies it.
     const extractClaims = async () => [1, 2, 3].map((page) => ({ text, type: 'Scientific', page, pages: [page], internalContradiction: false }));
-    const doc = await createDocument({ title: 'Duplicate Book', owner: 'reader', pages: [{ page: 1, text }] }, { extractClaims });
+    const doc = await createDocument({ title: 'Duplicate Excerpt', owner: 'reader', pages: [{ page: 1, text }] }, { extractClaims });
     assert.equal(doc.foundClaims, 3);
     assert.equal(doc.claims.filter((c) => c.autoSelected).length, 1);
     assert.equal(doc.claims[0].autoSelected, true);
@@ -58,7 +58,7 @@ test('duplicate claim text does not break the auto-verify cap (TL-008)', async (
 });
 
 test('background auto-verification settles the top 20 and leaves the rest unverified', async () => {
-  const doc = await createDocument({ title: 'Settle Book', owner: 'reader', pages: bigBook() });
+  const doc = await createDocument({ title: 'Settle Excerpt', owner: 'reader', pages: bigExcerpt() });
   await whenAutoVerificationDone(doc.id);
   const after = await getDocument(doc.id);
   const auto = after.claims.filter((c) => c.autoSelected);
@@ -70,7 +70,7 @@ test('background auto-verification settles the top 20 and leaves the rest unveri
 });
 
 test('reader can verify any not-yet-verified claim on demand', async () => {
-  const doc = await createDocument({ title: 'Pick Book', owner: 'reader', pages: bigBook() });
+  const doc = await createDocument({ title: 'Pick Excerpt', owner: 'reader', pages: bigExcerpt() });
   await whenAutoVerificationDone(doc.id);
   const settled = await getDocument(doc.id);
   const pick = settled.claims.find((c) => c.status === 'unverified');
@@ -86,7 +86,7 @@ test('reader can verify any not-yet-verified claim on demand', async () => {
 });
 
 test('reader-pick marking does not erase a follow-up saved after the verdict (TL-020)', async () => {
-  const doc = await createDocument({ title: 'Pick Race Book', owner: 'reader', pages: bigBook() });
+  const doc = await createDocument({ title: 'Pick Race Excerpt', owner: 'reader', pages: bigExcerpt() });
   await whenAutoVerificationDone(doc.id);
   const pick = (await getDocument(doc.id)).claims.find((c) => c.status === 'unverified');
   assert.ok(pick);
@@ -114,7 +114,7 @@ test('reader-pick marking does not erase a follow-up saved after the verdict (TL
 });
 
 test('verify-claim route returns the verified claim and 404s unknown ids', async () => {
-  const doc = await createDocument({ title: 'Route Book', owner: 'reader', pages: bigBook() });
+  const doc = await createDocument({ title: 'Route Excerpt', owner: 'reader', pages: bigExcerpt() });
   await whenAutoVerificationDone(doc.id);
   const pick = (await getDocument(doc.id)).claims.find((c) => c.status === 'unverified');
   const res = await verifyClaimRoute.POST(new Request('http://t/x', { method: 'POST' }), { params: { id: doc.id, claimId: pick.id } });
@@ -126,8 +126,8 @@ test('verify-claim route returns the verified claim and 404s unknown ids', async
   assert.equal((await verifyClaimRoute.POST(new Request('http://t/x', { method: 'POST' }), { params: { id: 'doc-999999', claimId: pick.id } })).status, 404);
 });
 
-test('reader-submitted theory is investigated against the book and external evidence', async () => {
-  const doc = await createDocument({ title: 'Reservoir Book', owner: 'reader', pages: [
+test('reader-submitted theory is investigated against the excerpt and external evidence', async () => {
+  const doc = await createDocument({ title: 'Reservoir Excerpt', owner: 'reader', pages: [
     { page: 1, text: 'The committee concluded that the new reservoir, built over five years,' },
     { page: 2, text: 'reduced flooding deaths by 60 percent across the whole valley region.' },
     { page: 3, text: 'Water boils at 100 degrees Celsius at sea level in kitchens everywhere today.' },
@@ -138,9 +138,9 @@ test('reader-submitted theory is investigated against the book and external evid
   assert.equal(out.claim.source, 'reader-submitted');
   assert.equal(out.claim.status, 'verified');
   assert.ok(out.claim.verdict);
-  assert.ok(out.claim.bookPassages.length >= 1);
-  assert.deepEqual(out.claim.bookPassages.map((p) => p.page).sort(), [1, 2]);
-  assert.match(out.claim.bookPassages.map((p) => p.passage).join(' '), /reservoir/i);
+  assert.ok(out.claim.excerptPassages.length >= 1);
+  assert.deepEqual(out.claim.excerptPassages.map((p) => p.page).sort(), [1, 2]);
+  assert.match(out.claim.excerptPassages.map((p) => p.passage).join(' '), /reservoir/i);
   assert.equal(out.claim.authorStance.stance, 'supports');
   const after = await getDocument(doc.id);
   assert.ok(after.report.readerInvestigated >= 1);
@@ -148,7 +148,7 @@ test('reader-submitted theory is investigated against the book and external evid
 });
 
 test('a compound reader theory surfaces per-proposition passages, stance, and verdicts', async () => {
-  const doc = await createDocument({ title: 'Theory Book', owner: 'reader', pages: [
+  const doc = await createDocument({ title: 'Theory Excerpt', owner: 'reader', pages: [
     { page: 1, text: 'The reservoir reduced flooding deaths across the valley. Water boils at 100 degrees Celsius at sea level in kitchens.' },
     { page: 2, text: 'Flooding deaths fell sharply after the reservoir opened, the report says.' },
   ] });
@@ -172,6 +172,23 @@ test('a compound reader theory surfaces per-proposition passages, stance, and ve
   assert.equal(single.claim.propositions, undefined, 'single claims gain no proposition machinery');
 });
 
+test('a repeated proposition in a reader theory is deduplicated with its verdict intact', async () => {
+  const doc = await createDocument({ title: 'Dup Theory Excerpt', owner: 'reader', pages: [
+    { page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens everywhere today.' },
+  ] });
+  await whenAutoVerificationDone(doc.id);
+  const stance = async (text) => ({ stance: 'discusses', reason: `stance for: ${text}` });
+  const dup = 'Water boils at 100 degrees Celsius at sea level.';
+  const verify = async ({ text }) => ({
+    text, verdict: 'Supported', judgedBy: 'Muse Spark 1.3', supporting: [], contradicting: [], explanation: 'rollup',
+    subclaims: [{ text: dup, verdict: 'Supported', judgedBy: 'Muse Spark 1.3' }],
+  });
+  const out = await assessDocumentClaim(doc.id, `${dup} ${dup}`, { stance, verify });
+  assert.ok(out.claim.propositions, 'compound submissions carry propositions');
+  assert.equal(out.claim.propositions.length, 1, `duplicate propositions collapse, got ${JSON.stringify(out.claim.propositions)}`);
+  assert.equal(out.claim.propositions[0].verdict, 'Supported');
+});
+
 test('assess route validates input and 404s unknown documents', async () => {
   const doc = await createDocument({ title: 'Assess Route', owner: 'reader', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
   const req = (body) => new Request('http://t/x', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -181,11 +198,11 @@ test('assess route validates input and 404s unknown documents', async () => {
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.claim.source, 'reader-submitted');
-  assert.ok(body.claim.bookPassages.length >= 1);
+  assert.ok(body.claim.excerptPassages.length >= 1);
 });
 
 test('reader can challenge a verdict; the follow-up is recorded and the original verdict stands', async () => {
-  const doc = await createDocument({ title: 'Challenge Book', owner: 'reader', pages: [{ page: 1, text: 'Humans only use 10% of their brains each day, waiting to be unlocked.' }] });
+  const doc = await createDocument({ title: 'Challenge Excerpt', owner: 'reader', pages: [{ page: 1, text: 'Humans only use 10% of their brains each day, waiting to be unlocked.' }] });
   await whenAutoVerificationDone(doc.id);
   const claim = (await getDocument(doc.id)).claims[0];
   const original = claim.verdict;
@@ -205,7 +222,7 @@ test('reader can challenge a verdict; the follow-up is recorded and the original
 });
 
 test('challenge kinds do different work, not the same rerun in three labels', async () => {
-  const doc = await createDocument({ title: 'Kinds Book', owner: 'reader', pages: [{ page: 1, text: 'Humans only use 10% of their brains each day, waiting to be unlocked.' }] });
+  const doc = await createDocument({ title: 'Kinds Excerpt', owner: 'reader', pages: [{ page: 1, text: 'Humans only use 10% of their brains each day, waiting to be unlocked.' }] });
   await whenAutoVerificationDone(doc.id);
   const claim = (await getDocument(doc.id)).claims[0];
 
@@ -250,7 +267,7 @@ test('challenge route validates kind and 404s unknown claims', async () => {
 });
 
 test('pause halts the automatic pass and resume finishes it', async () => {
-  const doc = await createDocument({ title: 'Pause Book', owner: 'reader', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
+  const doc = await createDocument({ title: 'Pause Excerpt', owner: 'reader', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
   await whenAutoVerificationDone(doc.id);
   // The repository has copy semantics: reset the claim on a fresh copy and
   // persist it, so the next pass sees a pending claim.
@@ -298,7 +315,7 @@ test('auto route toggles pause and 404s unknown documents', async () => {
 });
 
 test('concurrent reader submissions get distinct claim ids and both survive', async () => {
-  const doc = await createDocument({ title: 'Race Book', owner: 'reader', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
+  const doc = await createDocument({ title: 'Race Excerpt', owner: 'reader', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
   await whenAutoVerificationDone(doc.id);
   const stance = async () => ({ stance: 'discusses', reason: 'x' });
   const verify = async ({ text }) => { await new Promise((r) => setTimeout(r, 10)); return { text, verdict: 'Supported', judgedBy: 'Muse Spark 1.3', supporting: [], contradicting: [], explanation: '' }; };
@@ -364,7 +381,7 @@ test('a verdict apply does not erase a follow-up saved during its slow verify (T
 });
 
 test('starting auto-verification twice runs one loop, not two', async () => {
-  const doc = await createDocument({ title: 'Guard Book', owner: 'reader', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
+  const doc = await createDocument({ title: 'Guard Excerpt', owner: 'reader', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
   await whenAutoVerificationDone(doc.id);
   const stored = await getDocument(doc.id);
   stored.claims[0].status = 'pending'; stored.claims[0].autoSelected = true; stored.claims[0].history = [];
@@ -379,7 +396,7 @@ test('starting auto-verification twice runs one loop, not two', async () => {
 });
 
 test('idempotency key replays an assess request instead of investigating twice', async () => {
-  const doc = await createDocument({ title: 'Idem Book', owner: 'reader', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
+  const doc = await createDocument({ title: 'Idem Excerpt', owner: 'reader', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
   await whenAutoVerificationDone(doc.id);
   let verifies = 0;
   const stance = async () => ({ stance: 'discusses', reason: 'x' });
@@ -409,7 +426,7 @@ test('status guards allow the legal cycles and reject illegal jumps', () => {
 });
 
 test('events route streams the document snapshot as SSE', async () => {
-  const doc = await createDocument({ title: 'Stream Book', owner: 'reader', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
+  const doc = await createDocument({ title: 'Stream Excerpt', owner: 'reader', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
   const res = await eventsRoute.GET(new Request('http://t/x'), { params: { id: doc.id } });
   assert.equal(res.headers.get('content-type'), 'text/event-stream');
   const reader = res.body.getReader();
@@ -453,7 +470,7 @@ test('events route owner-checks the stream when accounts are on (TL-003)', async
 });
 
 test('a document orphaned mid-verification resumes when listed again', async () => {
-  const doc = await createDocument({ title: 'Orphan Book', owner: 'reader', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
+  const doc = await createDocument({ title: 'Orphan Excerpt', owner: 'reader', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
   await whenAutoVerificationDone(doc.id);
   const stored = await getDocument(doc.id);
   stored.claims[0].status = 'pending'; stored.claims[0].autoSelected = true; stored.status = 'verifying'; delete stored.claims[0].verdict;
@@ -466,7 +483,7 @@ test('a document orphaned mid-verification resumes when listed again', async () 
 });
 
 test('a failed auto-verification job does not leave the document verifying forever', async () => {
-  const doc = await createDocument({ title: 'Fail Book', owner: 'reader', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
+  const doc = await createDocument({ title: 'Fail Excerpt', owner: 'reader', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens.' }] });
   await whenAutoVerificationDone(doc.id);
   const stored = await getDocument(doc.id);
   stored.claims[0].status = 'pending'; stored.claims[0].autoSelected = true;
@@ -480,7 +497,7 @@ test('a failed auto-verification job does not leave the document verifying forev
 });
 
 test('recheck preserves a follow-up that lands while it runs', async () => {
-  const doc = await createDocument({ title: 'Recheck Book', owner: 'reader', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens. Humans only use 10% of their brains each day.' }] });
+  const doc = await createDocument({ title: 'Recheck Excerpt', owner: 'reader', pages: [{ page: 1, text: 'Water boils at 100 degrees Celsius at sea level in kitchens. Humans only use 10% of their brains each day.' }] });
   await whenAutoVerificationDone(doc.id);
   const repo = repository();
   const origLoadAll = repo.loadAll.bind(repo);

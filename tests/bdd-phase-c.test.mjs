@@ -36,7 +36,7 @@ test('BDD ask-a-theory: empty and oversized theories are rejected; a real questi
   const { createDocument } = await import('../lib/documents.mjs');
   const assessRoute = await import('../app/api/documents/[id]/assess/route.js');
   await givenWhenThen(
-    'a reader questioning a book with their own theory',
+    'a reader questioning an excerpt with their own theory',
     'the reader submits the theory',
     'validation for bad input and a judged claim for good input',
     async () => {
@@ -120,8 +120,8 @@ test('BDD accounts: when enabled, registration gates documents per owner', async
   const { POST: docsPost } = await import('../app/api/documents/route.js');
   await givenWhenThen(
     'a deployment with accounts switched on',
-    'two readers register and add books',
-    'each library shows only its own books',
+    'two readers register and add excerpts',
+    'each library shows only its own excerpts',
     async () => {
       process.env.AUTH_ENABLED = 'true';
       try {
